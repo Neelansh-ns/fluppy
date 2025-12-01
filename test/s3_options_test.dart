@@ -180,6 +180,151 @@ void main() {
       expect(opts.getDelay(2), equals(const Duration(seconds: 5)));
       expect(opts.getDelay(3), equals(const Duration(seconds: 5)));
     });
+
+    group('getDelay edge cases', () {
+      test('attempt 0 always returns zero (first attempt has no delay)', () {
+        const opts = RetryOptions(
+          initialDelay: Duration(seconds: 10),
+          exponentialBackoff: true,
+        );
+
+        // First attempt should never have a delay
+        expect(opts.getDelay(0), equals(Duration.zero));
+      });
+
+      test('negative attempt returns zero', () {
+        const opts = RetryOptions(
+          initialDelay: Duration(seconds: 1),
+          exponentialBackoff: true,
+        );
+
+        expect(opts.getDelay(-1), equals(Duration.zero));
+        expect(opts.getDelay(-100), equals(Duration.zero));
+      });
+
+      test('exponential backoff formula is correct: initialDelay * 2^(attempt-1)', () {
+        const opts = RetryOptions(
+          initialDelay: Duration(milliseconds: 100),
+          maxDelay: Duration(hours: 1), // high max to not interfere
+          exponentialBackoff: true,
+        );
+
+        // attempt 0: no delay (first attempt)
+        expect(opts.getDelay(0), equals(Duration.zero));
+        // attempt 1: 100ms * 2^0 = 100ms
+        expect(opts.getDelay(1), equals(const Duration(milliseconds: 100)));
+        // attempt 2: 100ms * 2^1 = 200ms
+        expect(opts.getDelay(2), equals(const Duration(milliseconds: 200)));
+        // attempt 3: 100ms * 2^2 = 400ms
+        expect(opts.getDelay(3), equals(const Duration(milliseconds: 400)));
+        // attempt 4: 100ms * 2^3 = 800ms
+        expect(opts.getDelay(4), equals(const Duration(milliseconds: 800)));
+        // attempt 5: 100ms * 2^4 = 1600ms
+        expect(opts.getDelay(5), equals(const Duration(milliseconds: 1600)));
+      });
+
+      test('constant delay (no exponential) still returns zero for attempt 0', () {
+        const opts = RetryOptions(
+          initialDelay: Duration(seconds: 5),
+          exponentialBackoff: false,
+        );
+
+        expect(opts.getDelay(0), equals(Duration.zero));
+        expect(opts.getDelay(1), equals(const Duration(seconds: 5)));
+        expect(opts.getDelay(10), equals(const Duration(seconds: 5)));
+      });
+
+      test('maxDelay caps all retry delays', () {
+        const opts = RetryOptions(
+          initialDelay: Duration(seconds: 1),
+          maxDelay: Duration(seconds: 5),
+          exponentialBackoff: true,
+        );
+
+        // attempt 4: 1 * 2^3 = 8 seconds, should be capped to 5
+        expect(opts.getDelay(4), equals(const Duration(seconds: 5)));
+        // attempt 10: would be huge, should be capped
+        expect(opts.getDelay(10), equals(const Duration(seconds: 5)));
+      });
+    });
+
+    group('retryDelays array', () {
+      test('uses retryDelays array values for retries', () {
+        const opts = RetryOptions(
+          retryDelays: [0, 1000, 2000, 5000], // Uppy-style delays in ms
+        );
+
+        // attempt 0: first attempt, no delay
+        expect(opts.getDelay(0), equals(Duration.zero));
+        // attempt 1: first retry, uses retryDelays[0] = 0ms
+        expect(opts.getDelay(1), equals(const Duration(milliseconds: 0)));
+        // attempt 2: second retry, uses retryDelays[1] = 1000ms
+        expect(opts.getDelay(2), equals(const Duration(milliseconds: 1000)));
+        // attempt 3: third retry, uses retryDelays[2] = 2000ms
+        expect(opts.getDelay(3), equals(const Duration(milliseconds: 2000)));
+        // attempt 4: fourth retry, uses retryDelays[3] = 5000ms
+        expect(opts.getDelay(4), equals(const Duration(milliseconds: 5000)));
+      });
+
+      test('retryDelays uses last value for attempts beyond array length', () {
+        const opts = RetryOptions(
+          retryDelays: [100, 500, 1000],
+        );
+
+        // Beyond array length, use last value
+        expect(opts.getDelay(5), equals(const Duration(milliseconds: 1000)));
+        expect(opts.getDelay(10), equals(const Duration(milliseconds: 1000)));
+        expect(opts.getDelay(100), equals(const Duration(milliseconds: 1000)));
+      });
+
+      test('retryDelays takes precedence over exponentialBackoff', () {
+        const opts = RetryOptions(
+          retryDelays: [500, 1000, 2000],
+          initialDelay: Duration(seconds: 10),
+          exponentialBackoff: true,
+        );
+
+        // Should use retryDelays, not exponential calculation
+        expect(opts.getDelay(0), equals(Duration.zero));
+        expect(opts.getDelay(1), equals(const Duration(milliseconds: 500)));
+        expect(opts.getDelay(2), equals(const Duration(milliseconds: 1000)));
+      });
+
+      test('empty retryDelays falls back to exponential backoff', () {
+        const opts = RetryOptions(
+          retryDelays: [],
+          initialDelay: Duration(milliseconds: 100),
+          exponentialBackoff: true,
+        );
+
+        // Empty array should fall back to exponential
+        expect(opts.getDelay(0), equals(Duration.zero));
+        expect(opts.getDelay(1), equals(const Duration(milliseconds: 100)));
+        expect(opts.getDelay(2), equals(const Duration(milliseconds: 200)));
+      });
+
+      test('Uppy-compatible retryDelays [0, 1000, 3000, 5000]', () {
+        // This is the Uppy default retryDelays
+        const opts = RetryOptions(
+          retryDelays: [0, 1000, 3000, 5000],
+        );
+
+        expect(opts.getDelay(0), equals(Duration.zero)); // first attempt
+        expect(opts.getDelay(1), equals(Duration.zero)); // retry 1: 0ms
+        expect(opts.getDelay(2), equals(const Duration(seconds: 1))); // retry 2: 1s
+        expect(opts.getDelay(3), equals(const Duration(seconds: 3))); // retry 3: 3s
+        expect(opts.getDelay(4), equals(const Duration(seconds: 5))); // retry 4: 5s
+        expect(opts.getDelay(5), equals(const Duration(seconds: 5))); // retry 5+: 5s (last)
+      });
+    });
+  });
+
+  group('S3Uploader static methods', () {
+    test('defaultUploadPartBytes is accessible as static method', () {
+      // Verify that defaultUploadPartBytes is a static method on S3Uploader
+      // This test ensures the class structure fix is correct
+      expect(S3Uploader.defaultUploadPartBytes, isA<Function>());
+    });
   });
 }
 
