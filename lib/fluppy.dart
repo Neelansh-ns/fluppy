@@ -6,7 +6,7 @@
 /// - Pause, resume, and retry functionality
 /// - Progress tracking
 /// - Temporary credentials support
-library fluppy;
+library;
 
 // Core exports
 export 'src/core/fluppy.dart';
