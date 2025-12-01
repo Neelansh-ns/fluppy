@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:fluppy/fluppy.dart';
 
@@ -159,7 +160,7 @@ void main() async {
 
   // From bytes
   fluppy.addFile(FluppyFile.fromBytes(
-    'Hello, World!'.codeUnits as dynamic,
+    Uint8List.fromList('Hello, World!'.codeUnits),
     name: 'hello.txt',
     type: 'text/plain',
   ));
