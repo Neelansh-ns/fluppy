@@ -1,0 +1,23 @@
+name: fluppy
+description: A modular, headless file upload library for Dart inspired by Uppy. Features S3 uploads with multipart support, pause/resume, and progress tracking.
+version: 0.1.0
+homepage: https://github.com/fluppy/fluppy-dart
+repository: https://github.com/fluppy/fluppy-dart
+issue_tracker: https://github.com/fluppy/fluppy-dart/issues
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  http: ^1.1.0
+  crypto: ^3.0.3
+  mime: ^2.0.0
+  path: ^1.8.3
+  collection: ^1.18.0
+  uuid: ^4.2.1
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^3.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.8
