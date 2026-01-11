@@ -22,7 +22,7 @@ When this command is invoked:
 2. **Check for Uppy.js references**:
    - If the user mentions Uppy features or wants to replicate Uppy behavior
    - **READ** `docs/uppy-study.md` first to understand Uppy's implementation
-   - Use that as the source of truth for the feature design. Also look online to make sure the knowledge os always up to date. If you find something is missing, update the `docs/uppy-study.md` accoerdingly.
+   - Use that as the source of truth for the feature design. Also look online to make sure the knowledge os always up to date. If you find something is missing, update the `docs/uppy-study.md` accordingly.
 
 3. **If no parameters provided**, respond with:
 
