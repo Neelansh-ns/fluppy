@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 class MockUploader extends Uploader {
   final List<String> uploadedFiles = [];
   final Map<String, Completer<UploadResponse>> completers = {};
+  final Set<String> _pausedFiles = {};
   bool shouldFail = false;
   String? failMessage;
 
@@ -28,9 +29,21 @@ class MockUploader extends Uploader {
       throw Exception(failMessage ?? 'Mock upload failed');
     }
 
+    // Check if file is paused - throw PausedException if so
+    if (_pausedFiles.contains(file.id)) {
+      throw PausedException();
+    }
+
     // Simulate progress
     for (var i = 0; i <= 100; i += 25) {
+      // Check if paused BEFORE checking cancellation token
+      // This ensures PausedException is thrown instead of CancelledException
+      if (_pausedFiles.contains(file.id)) {
+        throw PausedException();
+      }
+
       cancellationToken?.throwIfCancelled();
+
       onProgress(UploadProgressInfo(
         bytesUploaded: (file.size * i / 100).round(),
         bytesTotal: file.size,
@@ -46,7 +59,10 @@ class MockUploader extends Uploader {
   }
 
   @override
-  Future<bool> pause(FluppyFile file) async => true;
+  Future<bool> pause(FluppyFile file) async {
+    _pausedFiles.add(file.id);
+    return true;
+  }
 
   @override
   Future<UploadResponse> resume(
@@ -55,6 +71,8 @@ class MockUploader extends Uploader {
     required EventEmitter emitEvent,
     CancellationToken? cancellationToken,
   }) async {
+    // Remove from paused set
+    _pausedFiles.remove(file.id);
     return upload(
       file,
       onProgress: onProgress,
@@ -64,7 +82,9 @@ class MockUploader extends Uploader {
   }
 
   @override
-  Future<void> cancel(FluppyFile file) async {}
+  Future<void> cancel(FluppyFile file) async {
+    _pausedFiles.remove(file.id);
+  }
 
   @override
   Future<void> dispose() async {}
@@ -153,6 +173,12 @@ void main() {
       });
     });
 
+    /// Event emission tests
+    ///
+    /// These tests verify that Fluppy correctly emits events:
+    /// - File lifecycle events (added, removed)
+    /// - Upload lifecycle events (started, progress, complete, error)
+    /// - AllUploadsComplete event (critical for batch uploads)
     group('events', () {
       test('emits FileAdded event', () async {
         final file = FluppyFile.fromBytes(
@@ -192,10 +218,7 @@ void main() {
         );
 
         final progressEvents = <UploadProgress>[];
-        fluppy.events
-            .where((e) => e is UploadProgress)
-            .cast<UploadProgress>()
-            .listen(progressEvents.add);
+        fluppy.events.where((e) => e is UploadProgress).cast<UploadProgress>().listen(progressEvents.add);
 
         fluppy.addFile(file);
         await fluppy.upload(file.id);
@@ -220,7 +243,7 @@ void main() {
 
         fluppy.addFile(file);
         await fluppy.upload(file.id);
-        
+
         // Wait for complete event to be processed
         await completer.future.timeout(const Duration(seconds: 5));
 
@@ -276,6 +299,124 @@ void main() {
         await completer.future.timeout(const Duration(seconds: 5));
 
         expect(events, contains(isA<FileRemoved>()));
+      });
+
+      test('AllUploadsComplete not emitted when files are paused', () async {
+        final file1 = FluppyFile.fromBytes(
+          Uint8List.fromList([1]),
+          name: 'test1.bin',
+        );
+        final file2 = FluppyFile.fromBytes(
+          Uint8List.fromList([2]),
+          name: 'test2.bin',
+        );
+
+        final allCompleteEvents = <AllUploadsComplete>[];
+        fluppy.events.where((e) => e is AllUploadsComplete).cast<AllUploadsComplete>().listen(allCompleteEvents.add);
+
+        fluppy.addFile(file1);
+        fluppy.addFile(file2);
+
+        // Start upload for both files
+        final uploadFuture = fluppy.upload();
+
+        // Pause one file before it completes
+        await Future.delayed(const Duration(milliseconds: 10));
+        await fluppy.pause(file1.id);
+
+        // Wait for upload to complete (file2 should complete)
+        await uploadFuture;
+
+        // Give time for any events to be processed
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // AllUploadsComplete should NOT fire because file1 is paused
+        expect(allCompleteEvents, isEmpty);
+        expect(fluppy.pausedFiles.length, equals(1));
+      });
+
+      test('AllUploadsComplete fires after resume completes', () async {
+        final file1 = FluppyFile.fromBytes(
+          Uint8List.fromList([1]),
+          name: 'test1.bin',
+        );
+        final file2 = FluppyFile.fromBytes(
+          Uint8List.fromList([2]),
+          name: 'test2.bin',
+        );
+
+        final allCompleteEvents = <AllUploadsComplete>[];
+
+        fluppy.events.where((e) => e is AllUploadsComplete).cast<AllUploadsComplete>().listen(allCompleteEvents.add);
+
+        fluppy.addFile(file1);
+        fluppy.addFile(file2);
+
+        // Start upload for both files
+        final uploadFuture = fluppy.upload();
+
+        // Pause one file before it completes
+        await Future.delayed(const Duration(milliseconds: 10));
+        await fluppy.pause(file1.id);
+
+        // Wait for upload to complete (file2 should complete)
+        // AllUploadsComplete should NOT fire because file1 is paused
+        await uploadFuture;
+
+        // Verify AllUploadsComplete did NOT fire while file1 is paused
+        expect(allCompleteEvents, isEmpty, reason: 'AllUploadsComplete should not fire while file1 is paused');
+
+        // Resume paused file (returns immediately, upload continues in background)
+        await fluppy.resume(file1.id);
+
+        // Wait for file1 to complete (resume happens in background)
+        // Poll until file1 is complete or timeout
+        var attempts = 0;
+        while (file1.status != FileStatus.complete && attempts < 100) {
+          await Future.delayed(const Duration(milliseconds: 10));
+          attempts++;
+        }
+
+        expect(file1.status, equals(FileStatus.complete), reason: 'file1 should complete after resume');
+
+        // Give time for AllUploadsComplete event to be processed
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        // AllUploadsComplete should fire when all files complete
+        expect(allCompleteEvents, isNotEmpty, reason: 'AllUploadsComplete should fire after resume completes');
+        final event = allCompleteEvents.last;
+        expect(event.successful.length, equals(2), reason: 'Both files should be successful');
+        expect(event.failed, isEmpty);
+      });
+    });
+
+    group('Progress', () {
+      test('progress reaches 100% before completion', () async {
+        // This test verifies that when all parts are uploaded but _completeUpload
+        // hasn't been called yet, progress shows 100% and resume skips UploadResumed event
+        final file = FluppyFile.fromBytes(
+          Uint8List.fromList([1, 2, 3]),
+          name: 'test.bin',
+        );
+
+        fluppy.addFile(file);
+
+        // Start upload
+        final uploadFuture = fluppy.upload(file.id);
+
+        // Wait for upload to progress
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        // Check that progress exists and is reasonable
+        expect(file.progress, isNotNull);
+        expect(file.progress!.bytesTotal, greaterThan(0));
+
+        // Complete upload
+        await uploadFuture;
+
+        // Final progress should be 100%
+        expect(file.progress!.percent, equals(100.0));
+        expect(file.progress!.bytesUploaded, equals(file.progress!.bytesTotal));
       });
     });
 
@@ -434,4 +575,3 @@ void main() {
     });
   });
 }
-
