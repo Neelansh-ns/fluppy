@@ -467,24 +467,26 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 50));
       await uploader.pause(file);
 
-      // Verify upload was paused
-      await expectLater(uploadFuture, throwsA(isA<PausedException>()));
-
       // Verify at least one part was attempted before pause
       expect(signPartCallCount, greaterThan(0));
 
       // Reset counter to track resume
       final partsBeforeResume = signPartCallCount;
 
-      // Resume upload
-      final response = await uploader.resume(
+      // Resume upload - the original uploadFuture will continue
+      final resumeFuture = uploader.resume(
         file,
         onProgress: (info) {},
         emitEvent: (event) {},
       );
 
+      // Both futures should complete successfully
+      final uploadResponse = await uploadFuture;
+      final resumeResponse = await resumeFuture;
+
       // Verify upload completed
-      expect(response.location, equals('$baseUrl/bucket/pause-resume.bin'));
+      expect(uploadResponse.location, equals('$baseUrl/bucket/pause-resume.bin'));
+      expect(resumeResponse.location, equals('$baseUrl/bucket/pause-resume.bin'));
 
       // Verify remaining parts were uploaded during resume
       expect(signPartCallCount, greaterThan(partsBeforeResume));
