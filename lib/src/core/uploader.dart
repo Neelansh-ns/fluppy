@@ -79,17 +79,40 @@ class RetryConfig {
   /// Multiplier for exponential backoff.
   final double backoffMultiplier;
 
+  /// Explicit retry delays in milliseconds (Uppy-style).
+  ///
+  /// When provided, these delays are used instead of exponential backoff.
+  /// Example: `[0, 1000, 3000]` means:
+  /// - First retry: immediate (0ms)
+  /// - Second retry: after 1 second
+  /// - Third retry: after 3 seconds
+  final List<int>? retryDelays;
+
   const RetryConfig({
     this.maxRetries = 3,
     this.initialDelay = const Duration(seconds: 1),
     this.maxDelay = const Duration(seconds: 30),
     this.backoffMultiplier = 2.0,
+    this.retryDelays,
   });
 
   /// Calculates the delay for a given attempt number.
   Duration getDelay(int attempt) {
     if (attempt <= 0) return Duration.zero;
 
+    // Use explicit delays if provided (Uppy-style)
+    if (retryDelays != null) {
+      final index = attempt - 1;
+      if (index < retryDelays!.length) {
+        return Duration(milliseconds: retryDelays![index]);
+      }
+      // If we've exhausted the delays array, use the last delay
+      if (retryDelays!.isNotEmpty) {
+        return Duration(milliseconds: retryDelays!.last);
+      }
+    }
+
+    // Otherwise use exponential backoff
     var delay = initialDelay.inMilliseconds * (backoffMultiplier * (attempt - 1)).ceil();
 
     if (delay > maxDelay.inMilliseconds) {

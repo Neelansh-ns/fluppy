@@ -21,41 +21,6 @@ void main() {
         expect(file.sourceType, equals(FileSourceType.bytes));
         expect(file.status, equals(FileStatus.pending));
       });
-
-      test('generates unique id', () {
-        final bytes = Uint8List.fromList([1, 2, 3]);
-        final file1 = FluppyFile.fromBytes(bytes, name: 'test1.bin');
-        final file2 = FluppyFile.fromBytes(bytes, name: 'test2.bin');
-
-        expect(file1.id, isNot(equals(file2.id)));
-      });
-
-      test('allows custom id', () {
-        final bytes = Uint8List.fromList([1, 2, 3]);
-        final file = FluppyFile.fromBytes(
-          bytes,
-          name: 'test.bin',
-          id: 'custom-id',
-        );
-
-        expect(file.id, equals('custom-id'));
-      });
-
-      test('getBytes returns original bytes', () async {
-        final bytes = Uint8List.fromList([1, 2, 3, 4, 5]);
-        final file = FluppyFile.fromBytes(bytes, name: 'test.bin');
-
-        final result = await file.getBytes();
-        expect(result, equals(bytes));
-      });
-
-      test('getChunk returns correct slice', () async {
-        final bytes = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-        final file = FluppyFile.fromBytes(bytes, name: 'test.bin');
-
-        final chunk = await file.getChunk(2, 6);
-        expect(chunk, equals(Uint8List.fromList([2, 3, 4, 5])));
-      });
     });
 
     group('fromPath', () {

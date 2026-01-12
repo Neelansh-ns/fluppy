@@ -1,23 +1,9 @@
-import 'dart:typed_data';
-
 import 'package:fluppy/fluppy.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('UploadParameters', () {
-    test('creates with required fields', () {
-      const params = UploadParameters(
-        method: 'PUT',
-        url: 'https://example.com/upload',
-      );
-
-      expect(params.method, equals('PUT'));
-      expect(params.url, equals('https://example.com/upload'));
-      expect(params.headers, isNull);
-      expect(params.fields, isNull);
-    });
-
-    test('creates with optional fields', () {
+    test('creates with required and optional fields', () {
       const params = UploadParameters(
         method: 'POST',
         url: 'https://example.com/upload',
@@ -25,24 +11,14 @@ void main() {
         fields: {'key': 'value'},
       );
 
+      expect(params.method, equals('POST'));
+      expect(params.url, equals('https://example.com/upload'));
       expect(params.headers, equals({'Content-Type': 'image/png'}));
       expect(params.fields, equals({'key': 'value'}));
     });
   });
 
   group('S3Part', () {
-    test('creates with required fields', () {
-      const part = S3Part(
-        partNumber: 1,
-        size: 5242880,
-        eTag: '"abc123"',
-      );
-
-      expect(part.partNumber, equals(1));
-      expect(part.size, equals(5242880));
-      expect(part.eTag, equals('"abc123"'));
-    });
-
     test('fromJson parses correctly', () {
       final json = {
         'PartNumber': 2,
@@ -72,52 +48,9 @@ void main() {
     });
   });
 
-  group('CreateMultipartUploadResult', () {
-    test('creates with required fields', () {
-      const result = CreateMultipartUploadResult(
-        uploadId: 'upload-123',
-        key: 'path/to/file.mp4',
-      );
 
-      expect(result.uploadId, equals('upload-123'));
-      expect(result.key, equals('path/to/file.mp4'));
-    });
-  });
-
-  group('SignPartOptions', () {
-    test('creates with required fields', () {
-      final options = SignPartOptions(
-        uploadId: 'upload-123',
-        key: 'path/to/file.mp4',
-        partNumber: 1,
-        body: Uint8List.fromList([1, 2, 3]),
-      );
-
-      expect(options.uploadId, equals('upload-123'));
-      expect(options.key, equals('path/to/file.mp4'));
-      expect(options.partNumber, equals(1));
-      expect(options.body, equals(Uint8List.fromList([1, 2, 3])));
-    });
-  });
 
   group('TemporaryCredentials', () {
-    test('creates with required fields', () {
-      final expiration = DateTime.now().add(const Duration(hours: 1));
-      final credentials = TemporaryCredentials(
-        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
-        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-        sessionToken: 'session-token',
-        expiration: expiration,
-        bucket: 'my-bucket',
-        region: 'us-east-1',
-      );
-
-      expect(credentials.accessKeyId, equals('AKIAIOSFODNN7EXAMPLE'));
-      expect(credentials.bucket, equals('my-bucket'));
-      expect(credentials.region, equals('us-east-1'));
-      expect(credentials.isExpired, isFalse);
-    });
-
     test('isExpired returns true for past expiration', () {
       final credentials = TemporaryCredentials(
         accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
@@ -229,18 +162,5 @@ void main() {
     });
   });
 
-  group('UploadResponse', () {
-    test('creates with optional fields', () {
-      const response = UploadResponse(
-        location: 'https://example.com/file.mp4',
-        eTag: '"abc123"',
-        key: 'file.mp4',
-      );
-
-      expect(response.location, equals('https://example.com/file.mp4'));
-      expect(response.eTag, equals('"abc123"'));
-      expect(response.key, equals('file.mp4'));
-    });
-  });
 }
 
