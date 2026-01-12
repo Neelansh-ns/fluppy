@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart' hide ProgressCallback;
 
 import '../core/fluppy_file.dart';
-import '../core/events.dart';
 import '../core/uploader.dart';
 import 's3_options.dart';
 import 's3_types.dart';
+import 'multipart_upload_controller.dart';
 
 /// S3 Uploader implementation supporting both single-part and multipart uploads.
 ///
@@ -17,48 +16,37 @@ import 's3_types.dart';
 /// - Pause/resume capability
 /// - Progress tracking
 /// - Automatic retry with exponential backoff
-///
-/// Example:
-/// ```dart
-/// final uploader = S3Uploader(
-///   options: S3UploaderOptions(
-///     getUploadParameters: (file, options) async {
-///       final response = await backend.getPresignedUrl(file.name);
-///       return UploadParameters(
-///         method: 'PUT',
-///         url: response.url,
-///         headers: {'Content-Type': file.type ?? 'application/octet-stream'},
-///       );
-///     },
-///     // ... other callbacks
-///   ),
-/// );
-/// ```
 class S3Uploader extends Uploader with RetryMixin {
   /// Configuration options.
   final S3UploaderOptions options;
 
-  /// HTTP client for making requests.
-  final http.Client _httpClient;
+  /// Dio instance for making HTTP requests.
+  final Dio _dio;
 
   /// Cached temporary credentials.
   TemporaryCredentials? _cachedCredentials;
 
-  /// Files that are paused.
-  final Set<String> _pausedFiles = {};
+  /// Active upload controllers for multipart uploads.
+  final Map<String, MultipartUploadController> _controllers = {};
 
   /// Creates an S3 uploader with the given options.
   S3Uploader({
     required this.options,
-    http.Client? httpClient,
-  }) : _httpClient = httpClient ?? http.Client();
+    Dio? dio,
+  }) : _dio = dio ?? Dio();
 
   /// Retry configuration derived from options
   RetryConfig get _retryConfig => RetryConfig(
         maxRetries: options.retryOptions.maxRetries,
         initialDelay: options.retryOptions.initialDelay,
         maxDelay: options.retryOptions.maxDelay,
+        retryDelays: options.retryOptions.retryDelays,
       );
+
+  /// Determines if an error should be retried.
+  bool _shouldRetryError(Object error) {
+    return error is! PausedException && error is! CancelledException;
+  }
 
   @override
   bool get supportsPause => true;
@@ -73,16 +61,54 @@ class S3Uploader extends Uploader with RetryMixin {
     required EventEmitter emitEvent,
     CancellationToken? cancellationToken,
   }) async {
-    // Decide whether to use multipart
     if (options.useMultipart(file)) {
-      return _uploadMultipart(
-        file,
+      // Create controller for this upload
+      final controller = MultipartUploadController(
+        file: file,
+        options: options,
         onProgress: onProgress,
         emitEvent: emitEvent,
-        cancellationToken: cancellationToken,
+        dio: _dio,
+        retryConfig: _retryConfig,
+        shouldRetry: _shouldRetryError,
       );
+
+      _controllers[file.id] = controller;
+      
+
+      try {
+        // Start upload - this Future completes when done, cancelled, or paused
+        // If paused, controller.start() throws PausedException
+        final response = await controller.start();
+        
+        
+        
+        // Upload completed successfully - remove controller
+        _controllers.remove(file.id);
+        
+        
+        
+        return response;
+      } on PausedException {
+        // Upload was paused - keep controller alive for resume
+        // Don't remove from _controllers map (per Uppy pattern)
+        
+        
+        
+        rethrow;
+      } catch (e) {
+        // Upload errored or was cancelled - remove controller
+        
+        
+        
+        _controllers.remove(file.id);
+        
+        
+        
+        rethrow;
+      }
     } else {
-      return _uploadSinglePart(
+      return await _uploadSinglePart(
         file,
         onProgress: onProgress,
         cancellationToken: cancellationToken,
@@ -92,7 +118,26 @@ class S3Uploader extends Uploader with RetryMixin {
 
   @override
   Future<bool> pause(FluppyFile file) async {
-    _pausedFiles.add(file.id);
+    
+    
+    // Single-part uploads don't support pause/resume (like XHR in Uppy)
+    if (!options.useMultipart(file)) {
+      
+      return false;
+    }
+
+    final controller = _controllers[file.id];
+    if (controller == null) {
+      
+      return false;
+    }
+
+    
+    
+    controller.pause();
+    
+    
+    
     return true;
   }
 
@@ -103,19 +148,71 @@ class S3Uploader extends Uploader with RetryMixin {
     required EventEmitter emitEvent,
     CancellationToken? cancellationToken,
   }) async {
-    _pausedFiles.remove(file.id);
+    
 
-    if (file.isMultipart && file.uploadId != null) {
-      // Resume multipart upload
-      return _resumeMultipart(
-        file,
+    // If file is already complete, don't resume
+    if (file.status == FileStatus.complete) {
+      
+      if (file.response != null) {
+        return file.response!;
+      }
+      throw Exception('File already complete but no response available');
+    }
+
+    final controller = _controllers[file.id];
+    
+    
+
+    if (controller != null) {
+      
+      
+      // Check if controller is already completed before resuming
+      if (controller.state == UploadState.completed) {
+        // Don't call resume() or start() - just return the existing response
+        // The completer should have the real result
+        if (file.response != null) {
+          return file.response!;
+        }
+        // If no response stored, wait for completer (should be instant)
+        return await controller.start(); // This will return immediately if completed
+      }
+
+      // Resume existing controller
+      controller.resume();
+      return await controller.start(); // Continue the same upload
+    } else if (file.isMultipart && file.uploadId != null) {
+      
+      // No controller but file has existing multipart upload - create controller in resume mode
+      final controller = MultipartUploadController(
+        file: file,
+        options: options,
         onProgress: onProgress,
         emitEvent: emitEvent,
-        cancellationToken: cancellationToken,
+        dio: _dio,
+        retryConfig: _retryConfig,
+        shouldRetry: _shouldRetryError,
+        continueExisting: true,
       );
+
+      _controllers[file.id] = controller;
+
+      try {
+        final response = await controller.start();
+        // Upload completed successfully - remove controller
+        _controllers.remove(file.id);
+        return response;
+      } on PausedException {
+        // Upload was paused - keep controller alive for resume
+        // Don't remove from _controllers map (per Uppy pattern)
+        rethrow;
+      } catch (e) {
+        // Upload errored or was cancelled - remove controller
+        _controllers.remove(file.id);
+        rethrow;
+      }
     } else {
-      // Restart single-part upload
-      return upload(
+      // No controller and no existing upload - start new upload
+      return await upload(
         file,
         onProgress: onProgress,
         emitEvent: emitEvent,
@@ -126,9 +223,17 @@ class S3Uploader extends Uploader with RetryMixin {
 
   @override
   Future<void> cancel(FluppyFile file) async {
-    _pausedFiles.remove(file.id);
+    
+    
+    final controller = _controllers[file.id];
+    controller?.cancel();
+    
+    // Remove controller from map after cancellation
+    _controllers.remove(file.id);
+    
+    
 
-    // Abort multipart upload if in progress
+    // Abort multipart upload on server if in progress
     if (file.isMultipart && file.uploadId != null && file.key != null) {
       try {
         await options.abortMultipartUpload(
@@ -138,7 +243,7 @@ class S3Uploader extends Uploader with RetryMixin {
             key: file.key!,
           ),
         );
-      } catch (_) {
+      } catch (e) {
         // Ignore errors during abort
       }
     }
@@ -146,7 +251,8 @@ class S3Uploader extends Uploader with RetryMixin {
 
   @override
   Future<void> dispose() async {
-    _httpClient.close();
+    _controllers.clear();
+    _dio.close();
   }
 
   // ============================================
@@ -166,53 +272,94 @@ class S3Uploader extends Uploader with RetryMixin {
       file,
       UploadOptions(signal: cancellationToken),
     );
-
     cancellationToken?.throwIfCancelled();
 
     // Get file data
     final bytes = await file.getBytes();
-
     cancellationToken?.throwIfCancelled();
 
-    // Create request
-    final request = http.Request(params.method, Uri.parse(params.url));
-
-    // Add headers
-    if (params.headers != null) {
-      request.headers.addAll(params.headers!);
-    }
-
-    // Add body
-    request.bodyBytes = bytes;
-
-    // Upload to S3 with retry (THIS is what Fluppy should retry - the actual HTTP upload)
+    // Upload to S3 with retry
     final response = await withRetry(
-      () => _sendWithProgress(
-        request,
-        file.size,
-        onProgress,
-        cancellationToken,
-        expires: params.expires,
-      ),
+      () async {
+        cancellationToken?.throwIfCancelled();
+
+        // Convert CancellationToken to CancelToken for dio
+        CancelToken? cancelToken;
+        if (cancellationToken != null) {
+          cancelToken = CancelToken();
+          cancellationToken.onCancel(() {
+            cancelToken!.cancel();
+          });
+        }
+
+        try {
+          // Ensure content-type is set for binary data (Dio requirement)
+          final uploadHeaders = Map<String, String>.from(params.headers ?? {});
+          if (!uploadHeaders.containsKey('content-type') && !uploadHeaders.containsKey('Content-Type')) {
+            uploadHeaders['Content-Type'] = file.type ?? 'application/octet-stream';
+          }
+
+          final dioResponse = await _dio.put(
+            params.url,
+            data: bytes,
+            options: Options(
+              headers: uploadHeaders,
+              receiveTimeout: params.expires != null && params.expires! > 0 ? Duration(seconds: params.expires!) : null,
+            ),
+            cancelToken: cancelToken,
+          );
+
+          // Convert dio Response to http.Response-like structure
+          if (dioResponse.statusCode != null && (dioResponse.statusCode! < 200 || dioResponse.statusCode! >= 300)) {
+            // Check if this is an expired presigned URL
+            if (S3ExpiredUrlException.isExpiredResponse(dioResponse.statusCode!, dioResponse.data?.toString())) {
+              throw S3ExpiredUrlException(
+                statusCode: dioResponse.statusCode,
+                body: dioResponse.data?.toString(),
+              );
+            }
+            throw S3UploadException(
+              'Upload failed with status ${dioResponse.statusCode}',
+              statusCode: dioResponse.statusCode,
+              body: dioResponse.data?.toString(),
+            );
+          }
+
+          // Report progress
+          onProgress(UploadProgressInfo(
+            bytesUploaded: bytes.length,
+            bytesTotal: bytes.length,
+          ));
+
+          return _DioResponseWrapper(dioResponse);
+        } on DioException catch (e) {
+          if (e.type == DioExceptionType.cancel) {
+            throw CancelledException();
+          }
+
+          // Check for expired URL
+          if (e.response != null &&
+              S3ExpiredUrlException.isExpiredResponse(
+                e.response!.statusCode ?? 0,
+                e.response!.data?.toString(),
+              )) {
+            throw S3ExpiredUrlException(
+              statusCode: e.response!.statusCode,
+              body: e.response!.data?.toString(),
+            );
+          }
+
+          throw S3UploadException(
+            'Upload failed: ${e.message}',
+            statusCode: e.response?.statusCode,
+            body: e.response?.data?.toString(),
+          );
+        }
+      },
       config: _retryConfig,
       cancellationToken: cancellationToken,
+      shouldRetry: _shouldRetryError,
     );
-
-    // Check response
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      // Check if this is an expired presigned URL
-      if (S3ExpiredUrlException.isExpiredResponse(response.statusCode, response.body)) {
-        throw S3ExpiredUrlException(
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
-      throw S3UploadException(
-        'Upload failed with status ${response.statusCode}',
-        statusCode: response.statusCode,
-        body: response.body,
-      );
-    }
 
     // Extract ETag and location
     final eTag = response.headers['etag'];
@@ -224,385 +371,7 @@ class S3Uploader extends Uploader with RetryMixin {
     );
   }
 
-  // ============================================
-  // Multipart Upload
-  // ============================================
-
-  /// Uploads a file using multipart upload.
-  Future<UploadResponse> _uploadMultipart(
-    FluppyFile file, {
-    required ProgressCallback onProgress,
-    required EventEmitter emitEvent,
-    CancellationToken? cancellationToken,
-  }) async {
-    cancellationToken?.throwIfCancelled();
-
-    // Initialize multipart upload
-    final createResult = await options.createMultipartUpload(file);
-    file.uploadId = createResult.uploadId;
-    file.key = createResult.key;
-    file.isMultipart = true;
-
-    cancellationToken?.throwIfCancelled();
-
-    // Upload parts
-    return _uploadParts(
-      file,
-      onProgress: onProgress,
-      emitEvent: emitEvent,
-      cancellationToken: cancellationToken,
-    );
-  }
-
-  /// Resumes a multipart upload.
-  Future<UploadResponse> _resumeMultipart(
-    FluppyFile file, {
-    required ProgressCallback onProgress,
-    required EventEmitter emitEvent,
-    CancellationToken? cancellationToken,
-  }) async {
-    cancellationToken?.throwIfCancelled();
-
-    // List already uploaded parts
-    final existingParts = await options.listParts(
-      file,
-      ListPartsOptions(
-        uploadId: file.uploadId!,
-        key: file.key!,
-        signal: cancellationToken,
-      ),
-    );
-
-    // Update file's uploaded parts
-    file.uploadedParts.clear();
-    file.uploadedParts.addAll(existingParts);
-
-    cancellationToken?.throwIfCancelled();
-
-    // Continue uploading remaining parts
-    return _uploadParts(
-      file,
-      onProgress: onProgress,
-      emitEvent: emitEvent,
-      cancellationToken: cancellationToken,
-    );
-  }
-
-  /// Uploads parts for a multipart upload.
-  Future<UploadResponse> _uploadParts(
-    FluppyFile file, {
-    required ProgressCallback onProgress,
-    required EventEmitter emitEvent,
-    CancellationToken? cancellationToken,
-  }) async {
-    final chunkSize = options.chunkSize(file);
-    final totalParts = (file.size / chunkSize).ceil();
-
-    // Calculate already uploaded bytes
-    var uploadedBytes = file.uploadedParts.fold<int>(
-      0,
-      (sum, part) => sum + part.size,
-    );
-
-    // Track which parts are already uploaded
-    final uploadedPartNumbers = file.uploadedParts.map((p) => p.partNumber).toSet();
-
-    // Prepare parts to upload
-    final partsToUpload = <int>[];
-    for (var i = 1; i <= totalParts; i++) {
-      if (!uploadedPartNumbers.contains(i)) {
-        partsToUpload.add(i);
-      }
-    }
-
-    // Report initial progress
-    onProgress(UploadProgressInfo(
-      bytesUploaded: uploadedBytes,
-      bytesTotal: file.size,
-      partsUploaded: file.uploadedParts.length,
-      partsTotal: totalParts,
-    ));
-
-    // Upload parts with concurrency limit
-    final semaphore = _Semaphore(options.maxConcurrentParts);
-    final futures = <Future<void>>[];
-
-    for (final partNumber in partsToUpload) {
-      // Check for pause/cancel
-      if (_pausedFiles.contains(file.id)) {
-        throw PausedException();
-      }
-      cancellationToken?.throwIfCancelled();
-
-      final future = semaphore.run(() async {
-        if (_pausedFiles.contains(file.id)) {
-          throw PausedException();
-        }
-        cancellationToken?.throwIfCancelled();
-
-        final part = await _uploadPart(
-          file,
-          partNumber: partNumber,
-          chunkSize: chunkSize,
-          totalParts: totalParts,
-          cancellationToken: cancellationToken,
-        );
-
-        file.uploadedParts.add(part);
-        uploadedBytes += part.size;
-
-        // Report progress
-        onProgress(UploadProgressInfo(
-          bytesUploaded: uploadedBytes,
-          bytesTotal: file.size,
-          partsUploaded: file.uploadedParts.length,
-          partsTotal: totalParts,
-        ));
-
-        emitEvent(PartUploaded(file, part, totalParts));
-      });
-
-      futures.add(future);
-    }
-
-    // Wait for all parts
-    try {
-      await Future.wait(futures);
-    } on PausedException {
-      file.status = FileStatus.paused;
-      rethrow;
-    }
-
-    cancellationToken?.throwIfCancelled();
-
-    // Sort parts by part number for completion
-    file.uploadedParts.sort((a, b) => a.partNumber.compareTo(b.partNumber));
-
-    // Complete the multipart upload
-    final completeResult = await options.completeMultipartUpload(
-      file,
-      CompleteMultipartOptions(
-        uploadId: file.uploadId!,
-        key: file.key!,
-        parts: file.uploadedParts,
-        signal: cancellationToken,
-      ),
-    );
-
-    return UploadResponse(
-      location: completeResult.location,
-      eTag: completeResult.eTag,
-      key: file.key,
-    );
-  }
-
-  /// Uploads a single part with retry.
-  Future<S3Part> _uploadPart(
-    FluppyFile file, {
-    required int partNumber,
-    required int chunkSize,
-    required int totalParts,
-    CancellationToken? cancellationToken,
-  }) async {
-    // Calculate byte range for this part
-    final start = (partNumber - 1) * chunkSize;
-    var end = start + chunkSize;
-    if (end > file.size) {
-      end = file.size;
-    }
-
-    // Get chunk data
-    final chunkData = await file.getChunk(start, end);
-
-    // Sign the part - USER CALLBACK (no retry, user handles it)
-    final signResult = await options.signPart(
-      file,
-      SignPartOptions(
-        uploadId: file.uploadId!,
-        key: file.key!,
-        partNumber: partNumber,
-        body: chunkData,
-        signal: cancellationToken,
-      ),
-    );
-
-    cancellationToken?.throwIfCancelled();
-
-    // Upload the part with retry
-    final uploadResult = await withRetry(
-      () => _doUploadPartBytes(
-        url: signResult.url,
-        data: chunkData,
-        headers: signResult.headers,
-        expires: signResult.expires,
-        cancellationToken: cancellationToken,
-      ),
-      config: RetryConfig(
-        maxRetries: options.retryOptions.maxRetries,
-        initialDelay: options.retryOptions.initialDelay,
-        maxDelay: options.retryOptions.maxDelay,
-      ),
-      cancellationToken: cancellationToken,
-    );
-
-    return S3Part(
-      partNumber: partNumber,
-      size: chunkData.length,
-      eTag: uploadResult.eTag,
-    );
-  }
-
-  /// Uploads part bytes using either custom callback or default implementation.
-  Future<UploadPartBytesResult> _doUploadPartBytes({
-    required String url,
-    required Uint8List data,
-    Map<String, String>? headers,
-    int? expires,
-    CancellationToken? cancellationToken,
-  }) async {
-    // Use custom callback if provided
-    if (options.uploadPartBytes != null) {
-      return options.uploadPartBytes!(
-        UploadPartBytesOptions(
-          url: url,
-          headers: headers,
-          body: data,
-          size: data.length,
-          expires: expires,
-          signal: cancellationToken,
-        ),
-      );
-    }
-
-    // Use default implementation
-    final response = await _uploadPartData(
-      url,
-      data,
-      headers,
-      cancellationToken,
-      expires: expires,
-    );
-
-    final eTag = response.headers['etag'];
-    if (eTag == null) {
-      throw S3UploadException(
-        'No ETag in response',
-        statusCode: response.statusCode,
-      );
-    }
-
-    return UploadPartBytesResult(
-      eTag: eTag,
-      location: response.headers['location'],
-      headers: response.headers,
-    );
-  }
-
-  /// Uploads part data to the presigned URL.
-  ///
-  /// If [expires] is provided, the request will timeout after that duration.
-  Future<http.Response> _uploadPartData(
-    String url,
-    Uint8List data,
-    Map<String, String>? headers,
-    CancellationToken? cancellationToken, {
-    int? expires,
-  }) async {
-    cancellationToken?.throwIfCancelled();
-
-    final request = http.Request('PUT', Uri.parse(url));
-    if (headers != null) {
-      request.headers.addAll(headers);
-    }
-    request.bodyBytes = data;
-
-    // Send request with optional timeout based on expires
-    Future<http.StreamedResponse> sendFuture = _httpClient.send(request);
-    if (expires != null && expires > 0) {
-      sendFuture = sendFuture.timeout(
-        Duration(seconds: expires),
-        onTimeout: () {
-          throw S3ExpiredUrlException(
-            message: 'Request timed out after $expires seconds (presigned URL may have expired)',
-          );
-        },
-      );
-    }
-
-    final streamedResponse = await sendFuture;
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      // Check if this is an expired presigned URL
-      if (S3ExpiredUrlException.isExpiredResponse(response.statusCode, response.body)) {
-        throw S3ExpiredUrlException(
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
-      throw S3UploadException(
-        'Part upload failed with status ${response.statusCode}',
-        statusCode: response.statusCode,
-        body: response.body,
-      );
-    }
-
-    return response;
-  }
-
-  // ============================================
-  // Helpers
-  // ============================================
-
-  /// Sends a request with progress tracking.
-  ///
-  /// If [expires] is provided, the request will timeout after that duration.
-  Future<http.Response> _sendWithProgress(
-    http.Request request,
-    int totalBytes,
-    ProgressCallback onProgress,
-    CancellationToken? cancellationToken, {
-    int? expires,
-  }) async {
-    cancellationToken?.throwIfCancelled();
-
-    // Note: http package doesn't support upload progress tracking directly.
-    // For production use, consider using dio which supports this.
-    // Here we report progress before and after upload.
-
-    onProgress(UploadProgressInfo(
-      bytesUploaded: 0,
-      bytesTotal: totalBytes,
-    ));
-
-    // Send request with optional timeout based on expires
-    Future<http.StreamedResponse> sendFuture = _httpClient.send(request);
-    if (expires != null && expires > 0) {
-      sendFuture = sendFuture.timeout(
-        Duration(seconds: expires),
-        onTimeout: () {
-          throw S3ExpiredUrlException(
-            message: 'Request timed out after $expires seconds (presigned URL may have expired)',
-          );
-        },
-      );
-    }
-
-    final streamedResponse = await sendFuture;
-    final response = await http.Response.fromStream(streamedResponse);
-
-    onProgress(UploadProgressInfo(
-      bytesUploaded: totalBytes,
-      bytesTotal: totalBytes,
-    ));
-
-    return response;
-  }
-
   /// Gets temporary credentials, using cache if valid.
-  ///
-  /// This is exposed for users who want to implement their own upload logic
-  /// using temporary credentials for reduced overhead.
   Future<TemporaryCredentials?> getTemporaryCredentials({
     CancellationToken? cancellationToken,
   }) async {
@@ -640,61 +409,55 @@ class S3Uploader extends Uploader with RetryMixin {
   ///
   /// This is exposed as a static method so users can use it as a fallback
   /// in their custom [S3UploaderOptions.uploadPartBytes] implementations.
-  ///
-  /// Example:
-  /// ```dart
-  /// uploadPartBytes: (options) async {
-  ///   // Custom logic before upload
-  ///   print('Uploading to ${options.url}');
-  ///
-  ///   // Use default implementation
-  ///   return S3Uploader.defaultUploadPartBytes(options);
-  /// }
-  /// ```
   static Future<UploadPartBytesResult> defaultUploadPartBytes(
     UploadPartBytesOptions options,
   ) async {
     options.signal?.throwIfCancelled();
 
-    final client = http.Client();
+    final dio = Dio();
     try {
-      final request = http.Request(options.method, Uri.parse(options.url));
-      if (options.headers != null) {
-        request.headers.addAll(options.headers!);
-      }
-      request.bodyBytes = options.body;
-
-      // Send request with optional timeout based on expires
-      Future<http.StreamedResponse> sendFuture = client.send(request);
-      if (options.expires != null && options.expires! > 0) {
-        sendFuture = sendFuture.timeout(
-          Duration(seconds: options.expires!),
-          onTimeout: () {
-            throw S3ExpiredUrlException(
-              message: 'Request timed out after ${options.expires} seconds',
-            );
-          },
-        );
+      // Convert CancellationToken to CancelToken
+      CancelToken? cancelToken;
+      if (options.signal != null) {
+        cancelToken = CancelToken();
+        options.signal!.onCancel(() {
+          cancelToken!.cancel();
+        });
       }
 
-      final streamedResponse = await sendFuture;
-      final response = await http.Response.fromStream(streamedResponse);
+      // Ensure content-type is set for binary data (Dio requirement)
+      final uploadHeaders = Map<String, String>.from(options.headers ?? {});
+      if (!uploadHeaders.containsKey('content-type') && !uploadHeaders.containsKey('Content-Type')) {
+        uploadHeaders['Content-Type'] = 'application/octet-stream';
+      }
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (S3ExpiredUrlException.isExpiredResponse(response.statusCode, response.body)) {
+      final response = await dio.put(
+        options.url,
+        data: options.body,
+        options: Options(
+          headers: uploadHeaders,
+          receiveTimeout: options.expires != null && options.expires! > 0 ? Duration(seconds: options.expires!) : null,
+        ),
+        cancelToken: cancelToken,
+      );
+
+      if (response.statusCode != null && (response.statusCode! < 200 || response.statusCode! >= 300)) {
+        if (S3ExpiredUrlException.isExpiredResponse(response.statusCode!, response.data?.toString())) {
           throw S3ExpiredUrlException(
             statusCode: response.statusCode,
-            body: response.body,
+            body: response.data?.toString(),
           );
         }
         throw S3UploadException(
           'Upload failed with status ${response.statusCode}',
           statusCode: response.statusCode,
-          body: response.body,
+          body: response.data?.toString(),
         );
       }
 
-      final eTag = response.headers['etag'];
+      // Extract ETag from Dio headers (case-insensitive)
+      final eTag = response.headers.map['etag']?.first ?? 
+                   response.headers.map['ETag']?.first;
       if (eTag == null) {
         throw S3UploadException(
           'No ETag in response',
@@ -706,12 +469,55 @@ class S3Uploader extends Uploader with RetryMixin {
 
       return UploadPartBytesResult(
         eTag: eTag,
-        location: response.headers['location'],
-        headers: response.headers,
+        location: response.headers.map['location']?.first,
+        headers: Map<String, String>.from(response.headers.map.map(
+          (key, values) => MapEntry(key, values.first),
+        )),
+      );
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        throw CancelledException();
+      }
+
+      if (e.response != null &&
+          S3ExpiredUrlException.isExpiredResponse(
+            e.response!.statusCode ?? 0,
+            e.response!.data?.toString(),
+          )) {
+        throw S3ExpiredUrlException(
+          statusCode: e.response!.statusCode,
+          body: e.response!.data?.toString(),
+        );
+      }
+
+      throw S3UploadException(
+        'Upload failed: ${e.message}',
+        statusCode: e.response?.statusCode,
+        body: e.response?.data?.toString(),
       );
     } finally {
-      client.close();
+      dio.close();
     }
+  }
+}
+
+/// Wrapper to make Dio response compatible with http.Response interface.
+class _DioResponseWrapper {
+  final Response _response;
+
+  _DioResponseWrapper(this._response);
+
+  int get statusCode => _response.statusCode ?? 0;
+  String? get body => _response.data?.toString();
+
+  Map<String, String> get headers {
+    final result = <String, String>{};
+    _response.headers.forEach((key, values) {
+      if (values.isNotEmpty) {
+        result[key] = values.first;
+      }
+    });
+    return result;
   }
 }
 
@@ -734,14 +540,6 @@ class S3UploadException implements Exception {
 }
 
 /// Exception thrown when a presigned URL has expired.
-///
-/// This is a specific type of S3 error that occurs when:
-/// - The presigned URL's expiration time has passed
-/// - S3 returns a 403 status with "Request has expired" message
-///
-/// When this exception is thrown, the caller should:
-/// 1. Request a new presigned URL from the server
-/// 2. Retry the upload with the new URL
 class S3ExpiredUrlException extends S3UploadException {
   S3ExpiredUrlException({
     String message = 'Presigned URL has expired',
@@ -750,14 +548,10 @@ class S3ExpiredUrlException extends S3UploadException {
   }) : super(message, statusCode: statusCode, body: body);
 
   /// Checks if a response indicates an expired presigned URL.
-  ///
-  /// AWS S3 returns 403 with a message containing "Request has expired"
-  /// when the presigned URL has expired.
   static bool isExpiredResponse(int statusCode, String? body) {
     if (statusCode != 403) return false;
     if (body == null) return false;
 
-    // AWS S3 XML response format
     return body.contains('<Message>Request has expired</Message>') ||
         body.contains('Request has expired') ||
         body.contains('ExpiredToken') ||
@@ -766,47 +560,4 @@ class S3ExpiredUrlException extends S3UploadException {
 
   @override
   String toString() => 'S3ExpiredUrlException: $message (status: $statusCode)';
-}
-
-/// Exception thrown when an upload is paused.
-class PausedException implements Exception {
-  @override
-  String toString() => 'Upload was paused';
-}
-
-/// A simple semaphore for limiting concurrency.
-class _Semaphore {
-  final int maxConcurrent;
-  int _current = 0;
-  final _waiters = <Completer<void>>[];
-
-  _Semaphore(this.maxConcurrent);
-
-  Future<T> run<T>(Future<T> Function() operation) async {
-    await _acquire();
-    try {
-      return await operation();
-    } finally {
-      _release();
-    }
-  }
-
-  Future<void> _acquire() async {
-    if (_current < maxConcurrent) {
-      _current++;
-      return;
-    }
-
-    final completer = Completer<void>();
-    _waiters.add(completer);
-    await completer.future;
-  }
-
-  void _release() {
-    _current--;
-    if (_waiters.isNotEmpty) {
-      _current++;
-      _waiters.removeAt(0).complete();
-    }
-  }
 }
