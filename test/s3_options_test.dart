@@ -127,11 +127,8 @@ void main() {
     });
 
     group('defaults', () {
-      test('has correct default limit', () {
+      test('has correct default values', () {
         expect(options.limit, equals(6));
-      });
-
-      test('has correct default maxConcurrentParts', () {
         expect(options.maxConcurrentParts, equals(3));
       });
     });
