@@ -299,6 +299,12 @@ class CancelledException implements Exception {
   String toString() => 'CancelledException: $message';
 }
 
+/// Exception thrown when an upload is paused.
+class PausedException implements Exception {
+  @override
+  String toString() => 'Upload was paused';
+}
+
 /// Upload progress information.
 class UploadProgressInfo {
   /// Bytes uploaded so far.
