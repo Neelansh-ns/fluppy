@@ -46,3 +46,11 @@ yarn-error.log*
 # AWS credentials
 .aws/
 aws-credentials.json
+
+# Build artifacts
+build/
+**/build/
+**/Pods/
+**/.dart_tool/
+**/ios/Podfile.lock
+**/macos/Podfile.lock
