@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart' hide ProgressCallback;
 import 'package:fluppy/fluppy.dart';
-import 'package:fluppy/src/core/types.dart';
 import 'package:fluppy/src/s3/fluppy_file_extension.dart';
 import 'package:test/test.dart';
 
