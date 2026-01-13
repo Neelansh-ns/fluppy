@@ -648,6 +648,11 @@ class MultipartUploadController {
     // Total progress = completed parts + in-progress parts
     final totalProgress = _uploadedBytes + inProgressBytes;
 
+    // DEBUG: Print tracking state
+    print('DEBUG _updatePartProgress: part=$partNumber, uploaded=$bytesUploaded, '
+        '_uploadedBytes=$_uploadedBytes, inProgress=$inProgressBytes, total=$totalProgress/${file.size}, '
+        '_partProgress=${_partProgress.keys.toList()}, _completed=${_completedParts.toList()}');
+
     // Calculate parts info
     final chunkSize = options.chunkSize(file);
     final totalParts = (file.size / chunkSize).ceil();
