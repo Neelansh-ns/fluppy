@@ -298,8 +298,7 @@ class MultipartUploadController {
             file.s3Multipart.uploadedParts.add(part);
             uploadedBytes += part.size;
 
-            // Update completed bytes (part already removed from _partProgress and added to _completedParts in _uploadPart)
-            _uploadedBytes += part.size;
+            // Note: _uploadedBytes already updated in _uploadPart to prevent gap
 
             // Report progress
             onProgress(UploadProgressInfo(
@@ -366,14 +365,16 @@ class MultipartUploadController {
       ),
     );
 
-    // Mark as completed immediately to prevent late onSendProgress callbacks from double-counting
-    // This must happen BEFORE returning, as callbacks can fire after dio.put completes
-    _completedParts.add(partNumber);
-    _partProgress.remove(partNumber);
+    // Update tracking atomically to prevent gap where bytes are counted in neither location
+    // This must happen BEFORE returning, as other parts' onSendProgress can fire during the gap
+    final partSize = chunkData.length;
+    _uploadedBytes += partSize;          // Add to completed bytes
+    _partProgress.remove(partNumber);     // Remove from in-progress tracking
+    _completedParts.add(partNumber);      // Mark as completed (prevents late callbacks)
 
     return S3Part(
       partNumber: partNumber,
-      size: chunkData.length,
+      size: partSize,
       eTag: uploadResult.eTag,
     );
   }
