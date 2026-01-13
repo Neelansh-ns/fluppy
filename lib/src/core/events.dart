@@ -1,7 +1,10 @@
-import 'fluppy_file.dart';
-import '../s3/s3_types.dart';
+import 'fluppy.dart' show FluppyFile, FileStatus;
+import 'types.dart';
 
 /// Base class for all Fluppy events.
+///
+/// Core events extend this class. Plugins can also extend this class
+/// to define plugin-specific events (e.g., S3PartUploaded).
 ///
 /// Use pattern matching to handle events:
 /// ```dart
@@ -15,10 +18,14 @@ import '../s3/s3_types.dart';
 ///       print('Complete: ${file.name}');
 ///     case UploadError(:final file, :final error):
 ///       print('Error: $error');
+///     case S3PartUploaded(:final file, :final part):
+///       print('S3 part ${part.partNumber} uploaded');
+///     default:
+///       // Handle other events or ignore
 ///   }
 /// });
 /// ```
-sealed class FluppyEvent {
+abstract class FluppyEvent {
   /// The file associated with this event.
   FluppyFile get file;
 
@@ -148,23 +155,6 @@ class UploadRetry extends FluppyEvent {
 
   @override
   String toString() => 'UploadRetry(${file.name}, attempt: $attempt)';
-}
-
-/// Emitted when a multipart upload part is completed.
-class PartUploaded extends FluppyEvent {
-  @override
-  final FluppyFile file;
-
-  /// The part that was uploaded.
-  final S3Part part;
-
-  /// Total number of parts.
-  final int totalParts;
-
-  const PartUploaded(this.file, this.part, this.totalParts);
-
-  @override
-  String toString() => 'PartUploaded(${file.name}, part ${part.partNumber}/$totalParts)';
 }
 
 /// Emitted when all uploads in the queue are complete.
