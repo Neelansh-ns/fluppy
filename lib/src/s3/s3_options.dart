@@ -90,14 +90,6 @@ class S3UploaderOptions {
   /// For small files, single-part uploads have less overhead.
   final ShouldUseMultipartCallback? shouldUseMultipart;
 
-  /// Maximum number of concurrent file uploads.
-  ///
-  /// Default: 6
-  ///
-  /// Note: This limits concurrent files, not concurrent requests.
-  /// A multipart upload may use many requests per file.
-  final int limit;
-
   /// Chunk size for multipart uploads.
   ///
   /// Default: 5 MiB (S3 minimum)
@@ -177,7 +169,7 @@ class S3UploaderOptions {
   final int maxConcurrentParts;
 
   /// Retry configuration for failed requests.
-  final RetryOptions retryOptions;
+  final RetryConfig retryConfig;
 
   /// Custom implementation for uploading part bytes.
   ///
@@ -209,12 +201,11 @@ class S3UploaderOptions {
     required this.listParts,
     required this.abortMultipartUpload,
     this.shouldUseMultipart,
-    this.limit = 6,
     this.getChunkSize,
     this.getTemporarySecurityCredentials,
     this.allowedMetaFields,
     this.maxConcurrentParts = 3,
-    this.retryOptions = const RetryOptions(),
+    this.retryConfig = RetryConfig.defaultConfig,
     this.uploadPartBytes,
   });
 
@@ -267,7 +258,7 @@ class S3UploaderOptions {
 /// ```dart
 /// RetryOptions.withDelays([0, 1000, 3000, 5000]) // milliseconds
 /// ```
-class RetryOptions {
+class RetryConfig {
   /// Maximum number of retries per part.
   final int maxRetries;
 
@@ -290,7 +281,7 @@ class RetryOptions {
   /// - Fourth retry: after 5 seconds
   final List<int>? retryDelays;
 
-  const RetryOptions({
+  const RetryConfig({
     this.maxRetries = 3,
     this.initialDelay = const Duration(seconds: 1),
     this.maxDelay = const Duration(seconds: 30),
@@ -302,20 +293,15 @@ class RetryOptions {
   ///
   /// [delays] is a list of delays in milliseconds.
   /// Example: `[0, 1000, 3000, 5000]`
-  factory RetryOptions.withDelays(List<int> delays) {
-    return RetryOptions(
+  factory RetryConfig.withDelays(List<int> delays) {
+    return RetryConfig(
       maxRetries: delays.length,
       retryDelays: delays,
       exponentialBackoff: false,
     );
   }
 
-  /// Default retry delays: [0, 1000, 3000, 5000].
-  static const uppyDefaults = RetryOptions(
-    maxRetries: 4,
-    retryDelays: [0, 1000, 3000, 5000],
-    exponentialBackoff: false,
-  );
+  static const defaultConfig = RetryConfig();
 
   /// Calculates the delay for a given attempt (0-indexed).
   Duration getDelay(int attempt) {

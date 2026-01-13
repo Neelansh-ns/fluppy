@@ -33,9 +33,6 @@ class Fluppy {
   /// The uploader implementation to use.
   final Uploader uploader;
 
-  /// Configuration for retry behavior.
-  final RetryConfig retryConfig;
-
   /// Maximum concurrent uploads.
   final int maxConcurrent;
 
@@ -64,7 +61,6 @@ class Fluppy {
   /// [maxConcurrent] - Maximum number of concurrent uploads (default: 6).
   Fluppy({
     required this.uploader,
-    this.retryConfig = RetryConfig.defaultConfig,
     this.maxConcurrent = 6,
   });
 

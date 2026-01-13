@@ -12,6 +12,7 @@ library;
 export 'src/core/fluppy.dart';
 export 'src/core/events.dart';
 export 'src/core/uploader.dart';
+export 'src/core/types.dart';
 
 // S3 exports
 export 'src/s3/s3_uploader.dart';

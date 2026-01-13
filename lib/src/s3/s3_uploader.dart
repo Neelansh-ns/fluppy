@@ -39,10 +39,10 @@ class S3Uploader extends Uploader with RetryMixin {
 
   /// Retry configuration derived from options
   RetryConfig get _retryConfig => RetryConfig(
-        maxRetries: options.retryOptions.maxRetries,
-        initialDelay: options.retryOptions.initialDelay,
-        maxDelay: options.retryOptions.maxDelay,
-        retryDelays: options.retryOptions.retryDelays,
+        maxRetries: options.retryConfig.maxRetries,
+        initialDelay: options.retryConfig.initialDelay,
+        maxDelay: options.retryConfig.maxDelay,
+        retryDelays: options.retryConfig.retryDelays,
       );
 
   /// Determines if an error should be retried.
@@ -470,6 +470,50 @@ class S3Uploader extends Uploader with RetryMixin {
     } finally {
       dio.close();
     }
+  }
+}
+
+// Mixin providing retry functionality for uploaders.
+mixin RetryMixin {
+  /// Executes an operation with retry logic.
+  Future<T> withRetry<T>(
+      Future<T> Function() operation, {
+        required RetryConfig config,
+        required CancellationToken? cancellationToken,
+        bool Function(Object error)? shouldRetry,
+      }) async {
+    var attempt = 0;
+
+    while (true) {
+      try {
+        cancellationToken?.throwIfCancelled();
+        return await operation();
+      } catch (e) {
+        attempt++;
+
+        // Check if we should retry
+        final canRetry = shouldRetry?.call(e) ?? _isRetryableError(e);
+        if (!canRetry || attempt > config.maxRetries) {
+          rethrow;
+        }
+
+        // Wait before retrying
+        final delay = config.getDelay(attempt);
+        await Future.delayed(delay);
+
+        cancellationToken?.throwIfCancelled();
+      }
+    }
+  }
+
+  /// Default check for retryable errors.
+  bool _isRetryableError(Object error) {
+    // Retry on network-related errors
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('socket') ||
+        errorString.contains('connection') ||
+        errorString.contains('timeout') ||
+        errorString.contains('network');
   }
 }
 

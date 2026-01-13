@@ -1025,7 +1025,7 @@ void main() {
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => true,
             getChunkSize: (file) => 5 * 1024 * 1024,
-            retryOptions: const RetryOptions(maxRetries: 0),
+            retryConfig: const RetryConfig(maxRetries: 0),
             // No retries
             createMultipartUpload: (file) async => const CreateMultipartUploadResult(
               uploadId: 'test',
@@ -1223,7 +1223,7 @@ void main() {
           dio: mockDio,
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 3,
               initialDelay: Duration(milliseconds: 10),
               exponentialBackoff: true,
@@ -1281,7 +1281,7 @@ void main() {
           dio: mockDio,
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               retryDelays: [0, 100, 200], // Uppy-style delays in ms
             ),
             getUploadParameters: (file, opts) async {
@@ -1324,7 +1324,7 @@ void main() {
           dio: mockDio,
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 2,
               initialDelay: Duration(milliseconds: 10),
             ),
@@ -1360,7 +1360,7 @@ void main() {
           dio: createMockDio(),
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 3,
               initialDelay: Duration(milliseconds: 10),
             ),
@@ -1393,7 +1393,7 @@ void main() {
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => true,
             getChunkSize: (file) => 5 * 1024 * 1024,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 2,
               initialDelay: Duration(milliseconds: 10),
             ),
@@ -1448,7 +1448,7 @@ void main() {
             completeMultipartUpload: (file, opts) async => const CompleteMultipartResult(),
             abortMultipartUpload: (file, opts) async {},
             getUploadParameters: (file, opts) => throw UnimplementedError(),
-            retryOptions: const RetryOptions(maxRetries: 1, initialDelay: Duration(milliseconds: 10)),
+            retryConfig: const RetryConfig(maxRetries: 1, initialDelay: Duration(milliseconds: 10)),
           ),
         );
 
@@ -1748,9 +1748,6 @@ void main() {
         // Test default chunk size (5 MB)
         final testFile = FluppyFile.fromBytes(Uint8List(100), name: 'test.bin');
         expect(uploader.options.chunkSize(testFile), equals(5 * 1024 * 1024));
-
-        // Test default limit (6 concurrent files)
-        expect(uploader.options.limit, equals(6));
 
         // Test default maxConcurrentParts (3)
         expect(uploader.options.maxConcurrentParts, equals(3));
