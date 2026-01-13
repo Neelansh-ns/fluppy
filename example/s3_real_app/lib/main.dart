@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluppy/fluppy.dart';
@@ -174,13 +174,13 @@ class _S3UploadPageState extends State<S3UploadPage> {
 
     // Listen to events
     _fluppy!.events.listen((event) {
-      print('📢 Fluppy event received: $event');
+      debugLog('📢 Fluppy event received: $event');
       setState(() {
         switch (event) {
           case FileAdded(:final file):
-            print('📁 FileAdded event: ${file.name} (id: ${file.id})');
+            debugLog('📁 FileAdded event: ${file.name} (id: ${file.id})');
             _addFile(file);
-            print('📁 File added to UI list. Total files: ${_files.length}');
+            debugLog('📁 File added to UI list. Total files: ${_files.length}');
           case UploadStarted(:final file):
             final sizeStr = _formatBytes(file.size);
             _updateFile(file.id, status: 'Starting upload... (0 / $sizeStr)');
@@ -282,9 +282,9 @@ class _S3UploadPageState extends State<S3UploadPage> {
   }
 
   void _addFile(FluppyFile file) {
-    print('🎯 _addFile called: ${file.name} (id: ${file.id})');
+    debugLog('🎯 _addFile called: ${file.name} (id: ${file.id})');
     _files.add(UploadFileInfo(id: file.id, name: file.name, size: file.size, status: 'Ready', progress: 0.0));
-    print('✅ File added to _files list. Total: ${_files.length}');
+    debugLog('✅ File added to _files list. Total: ${_files.length}');
   }
 
   void _updateFile(String id, {String? status, double? progress, String? location, bool? hasError}) {
@@ -300,26 +300,26 @@ class _S3UploadPageState extends State<S3UploadPage> {
   }
 
   Future<void> _pickFiles() async {
-    print('=== _pickFiles called ===');
-    print('Platform: kIsWeb = $kIsWeb');
+    debugLog('=== _pickFiles called ===');
+    debugLog('Platform: kIsWeb = $kIsWeb');
 
     try {
-      print('Calling FilePicker.platform.pickFiles...');
+      debugLog('Calling FilePicker.platform.pickFiles...');
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         type: FileType.any,
         withData: kIsWeb, // Load bytes on web
       );
 
-      print('FilePicker result: ${result != null ? "Success (${result.files.length} files)" : "Cancelled/null"}');
+      debugLog('FilePicker result: ${result != null ? "Success (${result.files.length} files)" : "Cancelled/null"}');
 
       if (result != null) {
         for (final platformFile in result.files) {
-          print('Processing file: ${platformFile.name}');
+          debugLog('Processing file: ${platformFile.name}');
           if (kIsWeb) {
             // On web, use bytes (path is not available)
             if (platformFile.bytes != null) {
-              print('  -> Using bytes (${platformFile.bytes!.length} bytes)');
+              debugLog('  -> Using bytes (${platformFile.bytes!.length} bytes)');
               final file = FluppyFile.fromBytes(
                 platformFile.bytes!,
                 name: platformFile.name,
@@ -327,24 +327,24 @@ class _S3UploadPageState extends State<S3UploadPage> {
               );
               _fluppy!.addFile(file);
             } else {
-              print('  -> ERROR: bytes is null on web!');
+              debugLog('  -> ERROR: bytes is null on web!');
             }
           } else {
             // On mobile/desktop, use path
             if (platformFile.path != null) {
-              print('  -> Using path: ${platformFile.path}');
+              debugLog('  -> Using path: ${platformFile.path}');
               try {
                 final file = FluppyFile.fromPath(
                   platformFile.path!,
                   name: platformFile.name,
                   type: _getMimeType(platformFile.extension),
                 );
-                print('📤 Calling addFile for: ${file.name} (id: ${file.id}, size: ${file.size})');
+                debugLog('📤 Calling addFile for: ${file.name} (id: ${file.id}, size: ${file.size})');
                 final addedFile = _fluppy!.addFile(file);
-                print('✅ addFile returned: ${addedFile.name} (id: ${addedFile.id})');
+                debugLog('✅ addFile returned: ${addedFile.name} (id: ${addedFile.id})');
               } catch (e, stackTrace) {
-                print('❌ ERROR creating/adding file: $e');
-                print('Stack trace: $stackTrace');
+                debugLog('❌ ERROR creating/adding file: $e');
+                debugLog('Stack trace: $stackTrace');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error adding file: $e'), duration: const Duration(seconds: 5)),
@@ -352,18 +352,18 @@ class _S3UploadPageState extends State<S3UploadPage> {
                 }
               }
             } else {
-              print('  -> ERROR: path is null on native!');
+              debugLog('  -> ERROR: path is null on native!');
             }
           }
         }
-        print('=== _pickFiles completed successfully ===');
+        debugLog('=== _pickFiles completed successfully ===');
       } else {
-        print('=== _pickFiles cancelled by user ===');
+        debugLog('=== _pickFiles cancelled by user ===');
       }
     } catch (e, stackTrace) {
-      print('=== ERROR in _pickFiles ===');
-      print('Error: $e');
-      print('Stack trace: $stackTrace');
+      debugLog('=== ERROR in _pickFiles ===');
+      debugLog('Error: $e');
+      debugLog('Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -585,7 +585,9 @@ class _S3UploadPageState extends State<S3UploadPage> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, -2))],
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, -2)),
+              ],
             ),
             child: Row(
               children: [
@@ -851,5 +853,12 @@ class FileListItem extends StatelessWidget {
       return Icons.folder_zip;
     }
     return Icons.insert_drive_file;
+  }
+}
+
+/// Debug print helper that only prints in debug mode
+void debugLog(String message) {
+  if (kDebugMode) {
+    print(message);
   }
 }
