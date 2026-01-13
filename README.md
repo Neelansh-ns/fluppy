@@ -1,5 +1,8 @@
 # Fluppy
 
+[![pub package](https://img.shields.io/pub/v/fluppy.svg)](https://pub.dev/packages/fluppy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 A modular, headless file upload library for Dart inspired by [Uppy](https://uppy.io/).
 
 ## Features
@@ -14,9 +17,17 @@ A modular, headless file upload library for Dart inspired by [Uppy](https://uppy
 
 ## Installation
 
+Add Fluppy to your `pubspec.yaml`:
+
 ```yaml
 dependencies:
-    fluppy: ^0.1.0
+    fluppy: ^0.2.0
+```
+
+Or install via command line:
+
+```bash
+dart pub add fluppy
 ```
 
 ## Quick Start
@@ -120,6 +131,34 @@ await fluppy.retry(fileId);      // Retry failed upload
 await fluppy.cancel(fileId);     // Cancel upload
 fluppy.removeFile(fileId);       // Remove file from queue
 ```
+
+## Examples
+
+- **[example.dart](example/example.dart)** - Comprehensive S3 upload example with all features
+- **[s3_real_app](https://github.com/Neelansh-ns/fluppy/tree/main/example/s3_real_app)** - Complete Flutter app with UI (view on GitHub)
+
+## Documentation
+
+- **[API Reference](https://pub.dev/documentation/fluppy/latest/)** - Full API documentation
+- **[Changelog](https://github.com/Neelansh-ns/fluppy/blob/main/CHANGELOG.md)** - Version history
+- **[GitHub Repository](https://github.com/Neelansh-ns/fluppy)** - Source code and issues
+
+## Roadmap
+
+Fluppy aims for 1:1 feature parity with [Uppy.js](https://uppy.io/). Currently implemented:
+
+✅ Core orchestrator with event system
+✅ S3 uploader (single-part and multipart)
+✅ Pause/Resume/Retry functionality
+✅ Progress tracking
+✅ AWS Signature V4 support
+
+Coming soon:
+
+🔲 Tus resumable upload protocol
+🔲 HTTP/XHR uploader
+🔲 Preprocessing/Postprocessing pipeline
+🔲 File restrictions (size, type, count)
 
 ## License
 

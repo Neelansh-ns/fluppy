@@ -57,7 +57,6 @@ class Fluppy {
   /// Creates a new Fluppy instance.
   ///
   /// [uploader] - The uploader implementation (e.g., S3Uploader).
-  /// [retryConfig] - Configuration for retry behavior.
   /// [maxConcurrent] - Maximum number of concurrent uploads (default: 6).
   Fluppy({
     required this.uploader,
