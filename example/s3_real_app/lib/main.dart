@@ -169,7 +169,7 @@ class _S3UploadPageState extends State<S3UploadPage> {
           },
         ),
       ),
-      maxConcurrent: 3,
+      maxConcurrent: 30,
     );
 
     // Listen to events

@@ -266,7 +266,7 @@ void main() {
       final uploader = S3Uploader(
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => false,
-          retryOptions: const RetryOptions(
+          retryConfig: const RetryConfig(
             maxRetries: 0, // Disable retry for this test
           ),
           getUploadParameters: (file, opts) async {
@@ -307,7 +307,7 @@ void main() {
       final uploader = S3Uploader(
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => false,
-          retryOptions: const RetryOptions(maxRetries: 0),
+          retryConfig: const RetryConfig(maxRetries: 0),
           getUploadParameters: (file, opts) async {
             return UploadParameters(
               method: 'PUT',
