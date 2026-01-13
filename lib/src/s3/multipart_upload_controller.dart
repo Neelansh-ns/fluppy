@@ -35,6 +35,12 @@ class MultipartUploadController {
   /// Whether the upload has been started (first time).
   bool _uploadStarted = false;
 
+  /// Track progress for each part during upload (partNumber -> bytes uploaded for that part).
+  final Map<int, int> _partProgress = {};
+
+  /// Track total bytes already uploaded (from completed parts).
+  int _uploadedBytes = 0;
+
   /// Special reason for pausing (not a real error).
   static const String _pausingReason = 'pausing upload, not an actual error';
 
@@ -233,6 +239,10 @@ class MultipartUploadController {
       (sum, part) => sum + part.size,
     );
 
+    // Initialize tracking for completed bytes (used for progress aggregation)
+    _uploadedBytes = uploadedBytes;
+    _partProgress.clear(); // Clear any stale progress from previous attempts
+
     // Find parts that need uploading
     final uploadedPartNumbers = file.s3Multipart.uploadedParts.map((p) => p.partNumber).toSet();
     final partsToUpload = <int>[];
@@ -283,6 +293,10 @@ class MultipartUploadController {
           if (!alreadyExists) {
             file.s3Multipart.uploadedParts.add(part);
             uploadedBytes += part.size;
+
+            // Update completed bytes and clear this part from in-progress tracking
+            _uploadedBytes += part.size;
+            _partProgress.remove(part.partNumber);
 
             // Report progress
             onProgress(UploadProgressInfo(
@@ -343,6 +357,7 @@ class MultipartUploadController {
       () => _doUploadPartBytes(
         url: signResult.url,
         data: chunkData,
+        partNumber: partNumber,
         headers: signResult.headers,
         expires: signResult.expires,
       ),
@@ -359,6 +374,7 @@ class MultipartUploadController {
   Future<UploadPartBytesResult> _doUploadPartBytes({
     required String url,
     required Uint8List data,
+    required int partNumber,
     Map<String, String>? headers,
     int? expires,
   }) async {
@@ -374,18 +390,31 @@ class MultipartUploadController {
           size: data.length,
           expires: expires,
           signal: _createCancellationToken(),
+          onProgress: (sent, total) {
+            _updatePartProgress(partNumber, sent);
+          },
+          onComplete: (eTag) {
+            // Part completed, progress already tracked
+          },
         ),
       );
     }
 
     // Use default implementation with dio
-    return await _uploadPartData(url, data, headers, expires: expires);
+    return await _uploadPartData(
+      url,
+      data,
+      partNumber,
+      headers,
+      expires: expires,
+    );
   }
 
   /// Uploads part data using dio (supports cancellation).
   Future<UploadPartBytesResult> _uploadPartData(
     String url,
     Uint8List data,
+    int partNumber,
     Map<String, String>? headers, {
     int? expires,
   }) async {
@@ -406,6 +435,10 @@ class MultipartUploadController {
           receiveTimeout: expires != null && expires > 0 ? Duration(seconds: expires) : null,
         ),
         cancelToken: _cancelToken,
+        onSendProgress: (sent, total) {
+          // Report real-time progress for this part
+          _updatePartProgress(partNumber, sent);
+        },
       );
 
       // Dio headers are case-insensitive but stored as Map<String, List<String>>
@@ -576,6 +609,30 @@ class MultipartUploadController {
       token.cancel();
     }
     return token;
+  }
+
+  /// Updates progress for a specific part and reports aggregated progress.
+  void _updatePartProgress(int partNumber, int bytesUploaded) {
+    // Update progress for this part
+    _partProgress[partNumber] = bytesUploaded;
+
+    // Calculate total in-progress bytes across all active parts
+    final inProgressBytes = _partProgress.values.fold<int>(0, (sum, bytes) => sum + bytes);
+
+    // Total progress = completed parts + in-progress parts
+    final totalProgress = _uploadedBytes + inProgressBytes;
+
+    // Calculate parts info
+    final chunkSize = options.chunkSize(file);
+    final totalParts = (file.size / chunkSize).ceil();
+
+    // Report aggregated progress
+    onProgress(UploadProgressInfo(
+      bytesUploaded: totalProgress,
+      bytesTotal: file.size,
+      partsUploaded: file.s3Multipart.uploadedParts.length,
+      partsTotal: totalParts,
+    ));
   }
 }
 
