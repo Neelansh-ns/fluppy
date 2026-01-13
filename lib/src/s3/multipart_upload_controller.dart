@@ -365,14 +365,11 @@ class MultipartUploadController {
       ),
     );
 
-    // Update completed bytes
-    // Note: _completedParts and _partProgress already updated in _uploadPartData/_doUploadPartBytes
-    final partSize = chunkData.length;
-    _uploadedBytes += partSize;
-
+    // All tracking (_uploadedBytes, _completedParts, _partProgress) already updated
+    // in _uploadPartData/_doUploadPartBytes to prevent gaps
     return S3Part(
       partNumber: partNumber,
-      size: partSize,
+      size: chunkData.length,
       eTag: uploadResult.eTag,
     );
   }
@@ -406,9 +403,12 @@ class MultipartUploadController {
         ),
       );
 
-      // Mark as completed and remove from in-progress IMMEDIATELY after custom callback returns
+      // Update tracking atomically IMMEDIATELY after custom callback returns
+      // This prevents gap where bytes are in neither _partProgress nor _uploadedBytes
+      final partSize = data.length;
       _completedParts.add(partNumber);
       _partProgress.remove(partNumber);
+      _uploadedBytes += partSize;
 
       return result;
     }
@@ -454,10 +454,12 @@ class MultipartUploadController {
         },
       );
 
-      // Mark as completed and remove from in-progress IMMEDIATELY after dio.put returns
-      // This prevents race with buffered callbacks that fire asynchronously after await
+      // Update tracking atomically IMMEDIATELY after dio.put returns
+      // This prevents gap where bytes are in neither _partProgress nor _uploadedBytes
+      final partSize = data.length;
       _completedParts.add(partNumber);
       _partProgress.remove(partNumber);
+      _uploadedBytes += partSize;
 
       // Dio headers are case-insensitive but stored as Map<String, List<String>>
       final headersMap = response.headers.map;
