@@ -21,10 +21,6 @@ class MockHttpClientAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    if (delay != null) {
-      await Future.delayed(delay!);
-    }
-
     attemptCount++;
 
     // Check if error handler wants to throw an error
@@ -33,6 +29,33 @@ class MockHttpClientAdapter implements HttpClientAdapter {
       if (error != null) {
         throw error;
       }
+    }
+
+    // Simulate upload progress if requestStream is provided
+    if (requestStream != null && options.onSendProgress != null) {
+      var totalBytes = 0;
+      var sentBytes = 0;
+
+      // Collect chunks and calculate total size
+      final chunks = await requestStream.toList();
+      totalBytes = chunks.fold(0, (sum, chunk) => sum + chunk.length);
+
+      // Simulate sending with progress callbacks
+      // Split delay evenly across chunks (minimum 1ms per chunk)
+      final delayPerChunk = delay != null && chunks.isNotEmpty
+          ? Duration(milliseconds: (delay!.inMilliseconds / chunks.length).ceil())
+          : null;
+
+      for (final chunk in chunks) {
+        sentBytes += chunk.length;
+        options.onSendProgress?.call(sentBytes, totalBytes);
+
+        if (delayPerChunk != null) {
+          await Future.delayed(delayPerChunk);
+        }
+      }
+    } else if (delay != null) {
+      await Future.delayed(delay!);
     }
 
     // Return successful mock response
