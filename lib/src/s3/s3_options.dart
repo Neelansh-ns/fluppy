@@ -158,9 +158,9 @@ class S3UploaderOptions {
 
   /// Metadata fields to include in upload.
   ///
-  /// - null: Include all metadata
-  /// - []: Include no metadata
-  /// - ['name', 'type']: Include only specified fields
+  /// - `null`: Include all metadata
+  /// - `[]`: Include no metadata
+  /// - `['name', 'type']`: Include only specified fields
   final List<String>? allowedMetaFields;
 
   /// Maximum concurrent part uploads for a single file.

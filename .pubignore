@@ -1,0 +1,18 @@
+# Internal documentation (not for pub.dev)
+/docs/plans/
+/docs/research/
+/docs/review/
+CLAUDE.md
+
+# Example Flutter app (too large, users can view on GitHub)
+/example/s3_real_app/
+
+# Build artifacts
+/build/
+/doc/api/
+
+# IDE and development files
+/.idea/
+/.vscode/
+/.cursor/
+/.claude/
