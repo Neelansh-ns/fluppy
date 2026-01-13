@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:dio/dio.dart' hide ProgressCallback;
 
-import '../core/fluppy_file.dart';
+import '../core/fluppy.dart' show FluppyFile, FileStatus;
+import '../core/types.dart';
 import '../core/uploader.dart';
+import 'fluppy_file_extension.dart';
+import 'multipart_upload_controller.dart';
 import 's3_options.dart';
 import 's3_types.dart';
-import 'multipart_upload_controller.dart';
 
 /// S3 Uploader implementation supporting both single-part and multipart uploads.
 ///
@@ -74,37 +76,24 @@ class S3Uploader extends Uploader with RetryMixin {
       );
 
       _controllers[file.id] = controller;
-      
 
       try {
         // Start upload - this Future completes when done, cancelled, or paused
         // If paused, controller.start() throws PausedException
         final response = await controller.start();
-        
-        
-        
+
         // Upload completed successfully - remove controller
         _controllers.remove(file.id);
-        
-        
-        
+
         return response;
       } on PausedException {
         // Upload was paused - keep controller alive for resume
-        // Don't remove from _controllers map (per Uppy pattern)
-        
-        
-        
         rethrow;
       } catch (e) {
         // Upload errored or was cancelled - remove controller
-        
-        
-        
+
         _controllers.remove(file.id);
-        
-        
-        
+
         rethrow;
       }
     } else {
@@ -118,26 +107,18 @@ class S3Uploader extends Uploader with RetryMixin {
 
   @override
   Future<bool> pause(FluppyFile file) async {
-    
-    
-    // Single-part uploads don't support pause/resume (like XHR in Uppy)
+    // Single-part uploads don't support pause/resume
     if (!options.useMultipart(file)) {
-      
       return false;
     }
 
     final controller = _controllers[file.id];
     if (controller == null) {
-      
       return false;
     }
 
-    
-    
     controller.pause();
-    
-    
-    
+
     return true;
   }
 
@@ -148,11 +129,8 @@ class S3Uploader extends Uploader with RetryMixin {
     required EventEmitter emitEvent,
     CancellationToken? cancellationToken,
   }) async {
-    
-
     // If file is already complete, don't resume
     if (file.status == FileStatus.complete) {
-      
       if (file.response != null) {
         return file.response!;
       }
@@ -160,12 +138,8 @@ class S3Uploader extends Uploader with RetryMixin {
     }
 
     final controller = _controllers[file.id];
-    
-    
 
     if (controller != null) {
-      
-      
       // Check if controller is already completed before resuming
       if (controller.state == UploadState.completed) {
         // Don't call resume() or start() - just return the existing response
@@ -180,8 +154,7 @@ class S3Uploader extends Uploader with RetryMixin {
       // Resume existing controller
       controller.resume();
       return await controller.start(); // Continue the same upload
-    } else if (file.isMultipart && file.uploadId != null) {
-      
+    } else if (file.s3Multipart.isMultipart && file.s3Multipart.uploadId != null) {
       // No controller but file has existing multipart upload - create controller in resume mode
       final controller = MultipartUploadController(
         file: file,
@@ -203,7 +176,6 @@ class S3Uploader extends Uploader with RetryMixin {
         return response;
       } on PausedException {
         // Upload was paused - keep controller alive for resume
-        // Don't remove from _controllers map (per Uppy pattern)
         rethrow;
       } catch (e) {
         // Upload errored or was cancelled - remove controller
@@ -223,30 +195,31 @@ class S3Uploader extends Uploader with RetryMixin {
 
   @override
   Future<void> cancel(FluppyFile file) async {
-    
-    
     final controller = _controllers[file.id];
     controller?.cancel();
-    
+
     // Remove controller from map after cancellation
     _controllers.remove(file.id);
-    
-    
 
     // Abort multipart upload on server if in progress
-    if (file.isMultipart && file.uploadId != null && file.key != null) {
+    if (file.s3Multipart.isMultipart && file.s3Multipart.uploadId != null && file.s3Multipart.key != null) {
       try {
         await options.abortMultipartUpload(
           file,
           AbortMultipartOptions(
-            uploadId: file.uploadId!,
-            key: file.key!,
+            uploadId: file.s3Multipart.uploadId!,
+            key: file.s3Multipart.key!,
           ),
         );
       } catch (e) {
         // Ignore errors during abort
       }
     }
+  }
+
+  @override
+  Future<void> resetFileState(FluppyFile file) async {
+    file.resetS3Multipart();
   }
 
   @override
@@ -456,8 +429,7 @@ class S3Uploader extends Uploader with RetryMixin {
       }
 
       // Extract ETag from Dio headers (case-insensitive)
-      final eTag = response.headers.map['etag']?.first ?? 
-                   response.headers.map['ETag']?.first;
+      final eTag = response.headers.map['etag']?.first ?? response.headers.map['ETag']?.first;
       if (eTag == null) {
         throw S3UploadException(
           'No ETag in response',
@@ -508,6 +480,7 @@ class _DioResponseWrapper {
   _DioResponseWrapper(this._response);
 
   int get statusCode => _response.statusCode ?? 0;
+
   String? get body => _response.data?.toString();
 
   Map<String, String> get headers {

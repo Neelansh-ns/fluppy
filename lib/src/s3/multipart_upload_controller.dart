@@ -3,17 +3,19 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart' hide ProgressCallback;
 
-import '../core/fluppy_file.dart';
-import '../core/events.dart';
+import '../core/fluppy.dart' show FluppyFile;
+import '../core/types.dart';
 import '../core/uploader.dart';
+import 'fluppy_file_extension.dart';
+import 's3_events.dart';
 import 's3_options.dart';
 import 's3_types.dart';
 import 's3_uploader.dart';
 
 /// Controller for managing a single multipart upload lifecycle.
 ///
-/// Follows Uppy's architecture: the controller stays alive during pause.
-/// Pause aborts operations with a special reason, resume continues the same upload.
+/// The controller stays alive during pause. Pause aborts operations with a special reason,
+/// resume continues the same upload.
 ///
 /// State machine: idle → running → paused → running → completed
 class MultipartUploadController {
@@ -53,11 +55,8 @@ class MultipartUploadController {
   ///
   /// Returns a Future that completes when the upload is finished.
   Future<UploadResponse> start() async {
-    
-
     // If already completed, return the existing result
     if (_state == UploadState.completed && _completer.isCompleted) {
-      
       return _completer.future;
     }
 
@@ -75,7 +74,6 @@ class MultipartUploadController {
 
       // Check if paused after resume attempt
       if (_state == UploadState.paused) {
-        
         throw PausedException();
       }
     } else {
@@ -85,7 +83,6 @@ class MultipartUploadController {
 
       // Check if paused after start attempt
       if (_state == UploadState.paused) {
-        
         throw PausedException();
       }
     }
@@ -97,33 +94,26 @@ class MultipartUploadController {
   ///
   /// Aborts current operations with special reason, creates new token for resume.
   void pause() {
-    
     if (_state == UploadState.completed || _state == UploadState.cancelled) {
       return;
     }
 
     _state = UploadState.paused;
     if (_cancelToken != null && !_cancelToken!.isCancelled) {
-      
       _cancelToken!.cancel(_pausingReason);
     }
     _cancelToken = CancelToken(); // New token for resume
-    
   }
 
   /// Resumes the upload.
   ///
   /// Changes state to running. Call start() to continue.
   void resume() {
-    
-
     if (_state == UploadState.completed || _state == UploadState.cancelled) {
-      
       return;
     }
 
     _state = UploadState.running;
-    
   }
 
   /// Cancels the upload permanently.
@@ -142,23 +132,20 @@ class MultipartUploadController {
 
   /// Starts the upload for the first time.
   Future<void> _startUpload() async {
-    
     _state = UploadState.running;
     _uploadStarted = true;
 
     try {
       // Create multipart upload
-      
+
       final result = await options.createMultipartUpload(file);
-      
-      file.uploadId = result.uploadId;
-      file.key = result.key;
-      file.isMultipart = true;
-      
+
+      file.s3Multipart.uploadId = result.uploadId;
+      file.s3Multipart.key = result.key;
+      file.s3Multipart.isMultipart = true;
 
       // Upload parts
       await _uploadParts();
-      
 
       // Complete
       final response = await _completeUpload();
@@ -182,11 +169,8 @@ class MultipartUploadController {
 
   /// Resumes the upload after being paused.
   Future<void> _resumeUpload() async {
-    
-
     // If already completed, don't resume
     if (_state == UploadState.completed && _completer.isCompleted) {
-      
       return;
     }
 
@@ -197,17 +181,15 @@ class MultipartUploadController {
       final existingParts = await options.listParts(
         file,
         ListPartsOptions(
-          uploadId: file.uploadId!,
-          key: file.key!,
+          uploadId: file.s3Multipart.uploadId!,
+          key: file.s3Multipart.key!,
           signal: _createCancellationToken(),
         ),
       );
 
       // Replace in-memory state with S3 reality
-      file.uploadedParts.clear();
-      file.uploadedParts.addAll(existingParts);
-
-      
+      file.s3Multipart.uploadedParts.clear();
+      file.s3Multipart.uploadedParts.addAll(existingParts);
 
       // Upload remaining parts
       await _uploadParts();
@@ -220,10 +202,9 @@ class MultipartUploadController {
         _completer.complete(response);
       }
     } catch (e) {
-      
       if (_isPausingError(e)) {
         // This is a pause, not an error - convert to PausedException so fluppy.resume() can handle it
-        
+
         // Set state back to paused
         _state = UploadState.paused;
         // Throw PausedException so fluppy.resume() can catch it and handle properly
@@ -239,7 +220,6 @@ class MultipartUploadController {
 
   /// Uploads all remaining parts.
   Future<void> _uploadParts() async {
-    
     if (_state == UploadState.paused) {
       throw CancelledException(_pausingReason);
     }
@@ -248,24 +228,22 @@ class MultipartUploadController {
     final totalParts = (file.size / chunkSize).ceil();
 
     // Calculate already uploaded bytes
-    var uploadedBytes = file.uploadedParts.fold<int>(
+    var uploadedBytes = file.s3Multipart.uploadedParts.fold<int>(
       0,
       (sum, part) => sum + part.size,
     );
 
     // Find parts that need uploading
-    final uploadedPartNumbers = file.uploadedParts.map((p) => p.partNumber).toSet();
+    final uploadedPartNumbers = file.s3Multipart.uploadedParts.map((p) => p.partNumber).toSet();
     final partsToUpload = <int>[];
     for (int i = 1; i <= totalParts; i++) {
       if (!uploadedPartNumbers.contains(i)) {
         partsToUpload.add(i);
       }
     }
-    
 
     // If all parts are already uploaded, skip uploading
     if (partsToUpload.isEmpty) {
-      
       return;
     }
 
@@ -273,7 +251,7 @@ class MultipartUploadController {
     onProgress(UploadProgressInfo(
       bytesUploaded: uploadedBytes,
       bytesTotal: file.size,
-      partsUploaded: file.uploadedParts.length,
+      partsUploaded: file.s3Multipart.uploadedParts.length,
       partsTotal: totalParts,
     ));
 
@@ -292,31 +270,29 @@ class MultipartUploadController {
       }
 
       final future = semaphore.run(() async {
-        
         if (_state == UploadState.paused) {
           throw CancelledException(_pausingReason);
         }
 
         final part = await _uploadPart(partNumber, chunkSize, totalParts);
-        
 
         // Only add part if still in running state
         if (_state == UploadState.running) {
           // Check for duplicate (shouldn't happen, but be safe)
-          final alreadyExists = file.uploadedParts.any((p) => p.partNumber == part.partNumber);
+          final alreadyExists = file.s3Multipart.uploadedParts.any((p) => p.partNumber == part.partNumber);
           if (!alreadyExists) {
-            file.uploadedParts.add(part);
+            file.s3Multipart.uploadedParts.add(part);
             uploadedBytes += part.size;
 
             // Report progress
             onProgress(UploadProgressInfo(
               bytesUploaded: uploadedBytes,
               bytesTotal: file.size,
-              partsUploaded: file.uploadedParts.length,
+              partsUploaded: file.s3Multipart.uploadedParts.length,
               partsTotal: totalParts,
             ));
 
-            emitEvent(PartUploaded(file, part, totalParts));
+            emitEvent(S3PartUploaded(file, part, totalParts));
           }
         }
       });
@@ -333,7 +309,6 @@ class MultipartUploadController {
     int chunkSize,
     int totalParts,
   ) async {
-    
     // Calculate byte range for this part
     final start = (partNumber - 1) * chunkSize;
     var end = start + chunkSize;
@@ -342,28 +317,28 @@ class MultipartUploadController {
     }
 
     // Get chunk data
-    
+
     final chunkData = await file.getChunk(start, end);
-    
+
     _throwIfCancelled();
 
     // Sign the part
-    
+
     final signResult = await options.signPart(
       file,
       SignPartOptions(
-        uploadId: file.uploadId!,
-        key: file.key!,
+        uploadId: file.s3Multipart.uploadId!,
+        key: file.s3Multipart.key!,
         partNumber: partNumber,
         body: chunkData,
         signal: _createCancellationToken(),
       ),
     );
-    
+
     _throwIfCancelled();
 
     // Upload the part with retry
-    
+
     final uploadResult = await _withRetry(
       () => _doUploadPartBytes(
         url: signResult.url,
@@ -372,7 +347,6 @@ class MultipartUploadController {
         expires: signResult.expires,
       ),
     );
-    
 
     return S3Part(
       partNumber: partNumber,
@@ -424,7 +398,6 @@ class MultipartUploadController {
         uploadHeaders['Content-Type'] = 'application/octet-stream';
       }
 
-      
       final response = await dio.put(
         url,
         data: data,
@@ -440,10 +413,7 @@ class MultipartUploadController {
       final eTag = headersMap['etag']?.first ?? headersMap['ETag']?.first;
       final locationHeader = headersMap['location']?.first ?? headersMap['Location']?.first;
 
-      
-
       if (eTag == null) {
-        
         throw S3UploadException(
           'No ETag in response',
           statusCode: response.statusCode,
@@ -458,20 +428,17 @@ class MultipartUploadController {
         }
       });
 
-      
-
       return UploadPartBytesResult(
         eTag: eTag,
         location: locationHeader,
         headers: headersStringMap,
       );
     } on DioException catch (e) {
-      
       if (e.type == DioExceptionType.cancel) {
         // Check if this is a pause or real cancel
         // DioException cancel error is stored in e.error, not e.message
         final cancelError = e.error?.toString() ?? '';
-        
+
         if (cancelError.contains(_pausingReason) || e.message == _pausingReason) {
           throw CancelledException(_pausingReason);
         }
@@ -503,13 +470,14 @@ class MultipartUploadController {
     _throwIfCancelled();
 
     // Sort parts by part number
-    final sortedParts = List<S3Part>.from(file.uploadedParts)..sort((a, b) => a.partNumber.compareTo(b.partNumber));
+    final sortedParts = List<S3Part>.from(file.s3Multipart.uploadedParts)
+      ..sort((a, b) => a.partNumber.compareTo(b.partNumber));
 
     final result = await options.completeMultipartUpload(
       file,
       CompleteMultipartOptions(
-        uploadId: file.uploadId!,
-        key: file.key!,
+        uploadId: file.s3Multipart.uploadId!,
+        key: file.s3Multipart.key!,
         parts: sortedParts,
         signal: _createCancellationToken(),
       ),
@@ -522,16 +490,14 @@ class MultipartUploadController {
     onProgress(UploadProgressInfo(
       bytesUploaded: file.size,
       bytesTotal: file.size,
-      partsUploaded: file.uploadedParts.length,
+      partsUploaded: file.s3Multipart.uploadedParts.length,
       partsTotal: totalParts,
     ));
-
-    
 
     return UploadResponse(
       location: result.location,
       eTag: result.eTag,
-      key: file.key,
+      key: file.s3Multipart.key,
     );
   }
 
@@ -570,14 +536,14 @@ class MultipartUploadController {
   bool _isPausingError(Object error) {
     if (error is CancelledException) {
       final isPause = error.message == _pausingReason;
-      
+
       return isPause;
     }
     if (error is DioException) {
       final cancelError = error.error?.toString() ?? '';
       final isPause = error.type == DioExceptionType.cancel &&
           (cancelError.contains(_pausingReason) || error.message == _pausingReason);
-      
+
       return isPause;
     }
     return false;

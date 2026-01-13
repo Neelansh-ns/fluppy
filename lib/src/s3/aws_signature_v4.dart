@@ -113,9 +113,8 @@ class AwsSignatureV4 {
 
     // Build canonical query string (sorted)
     final sortedKeys = queryParams.keys.toList()..sort();
-    final canonicalQueryString = sortedKeys
-        .map((k) => '${Uri.encodeQueryComponent(k)}=${Uri.encodeQueryComponent(queryParams[k]!)}')
-        .join('&');
+    final canonicalQueryString =
+        sortedKeys.map((k) => '${Uri.encodeQueryComponent(k)}=${Uri.encodeQueryComponent(queryParams[k]!)}').join('&');
 
     // Build canonical headers
     final host = '$bucket.s3.$region.amazonaws.com';

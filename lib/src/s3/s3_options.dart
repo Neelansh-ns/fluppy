@@ -1,4 +1,4 @@
-import '../core/fluppy_file.dart';
+import '../core/fluppy.dart' show FluppyFile;
 import 's3_types.dart';
 
 /// Signature for the shouldUseMultipart callback.
@@ -64,8 +64,6 @@ const int minChunkSize = 5 * 1024 * 1024;
 const int maxParts = 10000;
 
 /// Configuration options for S3 uploads.
-///
-/// Mirrors the API of [@uppy/aws-s3](https://uppy.io/docs/aws-s3/).
 ///
 /// Example:
 /// ```dart
@@ -254,7 +252,7 @@ class S3UploaderOptions {
 ///
 /// Supports two modes:
 /// 1. **Exponential backoff** (default): Delays increase exponentially
-/// 2. **Explicit delays**: Uppy-style array of retry delays
+/// 2. **Explicit delays**: Array of retry delays
 ///
 /// Example with exponential backoff:
 /// ```dart
@@ -265,7 +263,7 @@ class S3UploaderOptions {
 /// )
 /// ```
 ///
-/// Example with Uppy-style delays:
+/// Example with explicit delays:
 /// ```dart
 /// RetryOptions.withDelays([0, 1000, 3000, 5000]) // milliseconds
 /// ```
@@ -282,7 +280,7 @@ class RetryOptions {
   /// Whether to use exponential backoff.
   final bool exponentialBackoff;
 
-  /// Explicit retry delays in milliseconds (Uppy-style).
+  /// Explicit retry delays in milliseconds.
   ///
   /// When provided, these delays are used instead of exponential backoff.
   /// Example: `[0, 1000, 3000, 5000]` means:
@@ -300,7 +298,7 @@ class RetryOptions {
     this.retryDelays,
   });
 
-  /// Creates retry options with explicit delays (Uppy-style).
+  /// Creates retry options with explicit delays.
   ///
   /// [delays] is a list of delays in milliseconds.
   /// Example: `[0, 1000, 3000, 5000]`
@@ -312,7 +310,7 @@ class RetryOptions {
     );
   }
 
-  /// Default Uppy-style retry delays: [0, 1000, 3000, 5000].
+  /// Default retry delays: [0, 1000, 3000, 5000].
   static const uppyDefaults = RetryOptions(
     maxRetries: 4,
     retryDelays: [0, 1000, 3000, 5000],
@@ -348,8 +346,6 @@ class RetryOptions {
 }
 
 /// Utility for filtering metadata fields.
-///
-/// Mirrors Uppy's `getAllowedMetaFields` behavior.
 class MetadataUtils {
   /// Filters metadata to only include allowed fields.
   ///

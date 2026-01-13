@@ -6,6 +6,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:test/test.dart';
 import 'package:fluppy/fluppy.dart';
+import 'package:fluppy/src/core/types.dart'; // Import for generic types
 
 void main() {
   late HttpServer server;
@@ -187,12 +188,11 @@ void main() {
       expect(response.location, equals('$baseUrl/bucket/multipart.bin'));
 
       // Verify 3 parts were uploaded
-      final partEvents = events.whereType<PartUploaded>();
+      final partEvents = events.whereType<S3PartUploaded>();
       expect(partEvents.length, equals(3));
 
       // Verify part numbers
-      expect(
-          partEvents.map((e) => e.part.partNumber).toSet(), equals({1, 2, 3}));
+      expect(partEvents.map((e) => e.part.partNumber).toSet(), equals({1, 2, 3}));
     });
 
     test('uploads parts concurrently', () async {
@@ -385,16 +385,14 @@ void main() {
   });
 
   group('S3 Integration Tests - Pause/Resume', () {
-    test('pauses multipart upload and resumes from where it left off',
-        () async {
+    test('pauses multipart upload and resumes from where it left off', () async {
       var signPartCallCount = 0;
 
       final uploader = S3Uploader(
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => true,
           getChunkSize: (file) => 5 * 1024 * 1024,
-          maxConcurrentParts:
-              1, // Upload one part at a time for predictable pause
+          maxConcurrentParts: 1, // Upload one part at a time for predictable pause
 
           createMultipartUpload: (file) async {
             final uploadId = mockS3.createMultipartUpload(file.name);
@@ -516,8 +514,7 @@ class MockS3Server {
       }
 
       // Simulate retry failures
-      if (failureCountBeforeSuccess > 0 &&
-          _currentAttemptCount < failureCountBeforeSuccess) {
+      if (failureCountBeforeSuccess > 0 && _currentAttemptCount < failureCountBeforeSuccess) {
         _currentAttemptCount++;
         return shelf.Response.internalServerError(
           body: 'Simulated transient error',
@@ -620,8 +617,7 @@ class MockS3Server {
         'eTag': '"part-${entry.key}-${entry.value.length}"',
       };
     }).toList()
-      ..sort(
-          (a, b) => (a['partNumber'] as int).compareTo(b['partNumber'] as int));
+      ..sort((a, b) => (a['partNumber'] as int).compareTo(b['partNumber'] as int));
   }
 
   void completeMultipartUpload(

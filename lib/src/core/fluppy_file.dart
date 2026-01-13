@@ -1,11 +1,4 @@
-import 'dart:io';
-import 'dart:typed_data';
-
-import 'package:mime/mime.dart';
-import 'package:path/path.dart' as p;
-import 'package:uuid/uuid.dart';
-
-import '../s3/s3_types.dart';
+part of 'fluppy.dart';
 
 const _uuid = Uuid();
 
@@ -73,8 +66,7 @@ class FluppyFile {
   /// Stream provider (if [sourceType] is [FileSourceType.stream]).
   final Stream<List<int>> Function()? streamProvider;
 
-  /// Current upload status.
-  FileStatus status;
+  FileStatus _status;
 
   /// Upload progress information.
   UploadProgressInfo? progress;
@@ -91,18 +83,14 @@ class FluppyFile {
   /// Response from the upload (after completion).
   UploadResponse? response;
 
-  // Multipart upload state
-  /// The S3 upload ID for multipart uploads.
-  String? uploadId;
-
-  /// The S3 object key.
-  String? key;
-
-  /// Parts that have been uploaded.
-  final List<S3Part> uploadedParts = [];
-
-  /// Whether this is a multipart upload.
-  bool isMultipart = false;
+  /// Current upload status (read-only).
+  ///
+  /// Status can only be changed through Fluppy methods:
+  /// - [Fluppy.upload] - sets status to uploading
+  /// - [Fluppy.pause] - sets status to paused
+  /// - [Fluppy.cancel] - sets status to cancelled
+  /// - [Fluppy.retry] - resets status to pending
+  FileStatus get status => _status;
 
   FluppyFile._({
     required this.id,
@@ -114,7 +102,7 @@ class FluppyFile {
     this.bytes,
     this.streamProvider,
     Map<String, dynamic>? metadata,
-  })  : status = FileStatus.pending,
+  })  : _status = FileStatus.pending,
         metadata = metadata ?? {};
 
   /// Creates a FluppyFile from a local filesystem path.
@@ -282,9 +270,8 @@ class FluppyFile {
     }
   }
 
-  /// Updates the file status.
-  void updateStatus(FileStatus newStatus, {String? errorMsg, Object? err}) {
-    status = newStatus;
+  void _updateStatus(FileStatus newStatus, {String? errorMsg, Object? err}) {
+    _status = newStatus;
     if (newStatus == FileStatus.error) {
       errorMessage = errorMsg;
       error = err;
@@ -307,7 +294,7 @@ class FluppyFile {
 
   /// Resets the file for retry.
   void reset() {
-    status = FileStatus.pending;
+    _status = FileStatus.pending;
     progress = null;
     errorMessage = null;
     error = null;
@@ -315,13 +302,12 @@ class FluppyFile {
     // Keep multipart state for resume capability
   }
 
-  /// Fully resets the file, clearing multipart state.
-  void fullReset() {
-    reset();
-    uploadId = null;
-    key = null;
-    uploadedParts.clear();
-    isMultipart = false;
+  void _updateStatusInternal(FileStatus newStatus, {String? errorMsg, Object? err}) {
+    _updateStatus(newStatus, errorMsg: errorMsg, err: err);
+  }
+
+  void _setStatusInternal(FileStatus value) {
+    _status = value;
   }
 
   @override
