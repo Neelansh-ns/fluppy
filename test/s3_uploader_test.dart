@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart' hide ProgressCallback;
 import 'package:fluppy/fluppy.dart';
-import 'package:fluppy/src/core/types.dart';
 import 'package:fluppy/src/s3/fluppy_file_extension.dart';
 import 'package:test/test.dart';
 
@@ -21,10 +20,6 @@ class MockHttpClientAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    if (delay != null) {
-      await Future.delayed(delay!);
-    }
-
     attemptCount++;
 
     // Check if error handler wants to throw an error
@@ -33,6 +28,33 @@ class MockHttpClientAdapter implements HttpClientAdapter {
       if (error != null) {
         throw error;
       }
+    }
+
+    // Simulate upload progress if requestStream is provided
+    if (requestStream != null && options.onSendProgress != null) {
+      var totalBytes = 0;
+      var sentBytes = 0;
+
+      // Collect chunks and calculate total size
+      final chunks = await requestStream.toList();
+      totalBytes = chunks.fold(0, (sum, chunk) => sum + chunk.length);
+
+      // Simulate sending with progress callbacks
+      // Split delay evenly across chunks (minimum 1ms per chunk)
+      final delayPerChunk = delay != null && chunks.isNotEmpty
+          ? Duration(milliseconds: (delay!.inMilliseconds / chunks.length).ceil())
+          : null;
+
+      for (final chunk in chunks) {
+        sentBytes += chunk.length;
+        options.onSendProgress?.call(sentBytes, totalBytes);
+
+        if (delayPerChunk != null) {
+          await Future.delayed(delayPerChunk);
+        }
+      }
+    } else if (delay != null) {
+      await Future.delayed(delay!);
     }
 
     // Return successful mock response
@@ -1025,7 +1047,7 @@ void main() {
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => true,
             getChunkSize: (file) => 5 * 1024 * 1024,
-            retryOptions: const RetryOptions(maxRetries: 0),
+            retryConfig: const RetryConfig(maxRetries: 0),
             // No retries
             createMultipartUpload: (file) async => const CreateMultipartUploadResult(
               uploadId: 'test',
@@ -1223,7 +1245,7 @@ void main() {
           dio: mockDio,
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 3,
               initialDelay: Duration(milliseconds: 10),
               exponentialBackoff: true,
@@ -1281,7 +1303,7 @@ void main() {
           dio: mockDio,
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               retryDelays: [0, 100, 200], // Uppy-style delays in ms
             ),
             getUploadParameters: (file, opts) async {
@@ -1324,7 +1346,7 @@ void main() {
           dio: mockDio,
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 2,
               initialDelay: Duration(milliseconds: 10),
             ),
@@ -1360,7 +1382,7 @@ void main() {
           dio: createMockDio(),
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => false,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 3,
               initialDelay: Duration(milliseconds: 10),
             ),
@@ -1393,7 +1415,7 @@ void main() {
           options: S3UploaderOptions(
             shouldUseMultipart: (file) => true,
             getChunkSize: (file) => 5 * 1024 * 1024,
-            retryOptions: const RetryOptions(
+            retryConfig: const RetryConfig(
               maxRetries: 2,
               initialDelay: Duration(milliseconds: 10),
             ),
@@ -1448,7 +1470,7 @@ void main() {
             completeMultipartUpload: (file, opts) async => const CompleteMultipartResult(),
             abortMultipartUpload: (file, opts) async {},
             getUploadParameters: (file, opts) => throw UnimplementedError(),
-            retryOptions: const RetryOptions(maxRetries: 1, initialDelay: Duration(milliseconds: 10)),
+            retryConfig: const RetryConfig(maxRetries: 1, initialDelay: Duration(milliseconds: 10)),
           ),
         );
 
@@ -1748,9 +1770,6 @@ void main() {
         // Test default chunk size (5 MB)
         final testFile = FluppyFile.fromBytes(Uint8List(100), name: 'test.bin');
         expect(uploader.options.chunkSize(testFile), equals(5 * 1024 * 1024));
-
-        // Test default limit (6 concurrent files)
-        expect(uploader.options.limit, equals(6));
 
         // Test default maxConcurrentParts (3)
         expect(uploader.options.maxConcurrentParts, equals(3));

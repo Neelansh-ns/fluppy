@@ -2,8 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:fluppy/fluppy.dart';
-import 'package:fluppy/src/core/fluppy.dart' show FluppyFile; // Import for extension access
-import 'package:fluppy/src/s3/fluppy_file_extension.dart'; // Import for extension
+import 'package:fluppy/src/s3/fluppy_file_extension.dart';
 import 'package:test/test.dart';
 
 void main() {

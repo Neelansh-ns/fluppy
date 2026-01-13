@@ -35,6 +35,15 @@ class MultipartUploadController {
   /// Whether the upload has been started (first time).
   bool _uploadStarted = false;
 
+  /// Track progress for each part during upload (partNumber -> bytes uploaded for that part).
+  final Map<int, int> _partProgress = {};
+
+  /// Track total bytes already uploaded (from completed parts).
+  int _uploadedBytes = 0;
+
+  /// Track which parts have completed to prevent double-counting from late onSendProgress callbacks.
+  final Set<int> _completedParts = {};
+
   /// Special reason for pausing (not a real error).
   static const String _pausingReason = 'pausing upload, not an actual error';
 
@@ -233,6 +242,11 @@ class MultipartUploadController {
       (sum, part) => sum + part.size,
     );
 
+    // Initialize tracking for completed bytes (used for progress aggregation)
+    _uploadedBytes = uploadedBytes;
+    _partProgress.clear(); // Clear any stale progress from previous attempts
+    _completedParts.clear(); // Clear completed parts tracking
+
     // Find parts that need uploading
     final uploadedPartNumbers = file.s3Multipart.uploadedParts.map((p) => p.partNumber).toSet();
     final partsToUpload = <int>[];
@@ -247,13 +261,8 @@ class MultipartUploadController {
       return;
     }
 
-    // Report initial progress
-    onProgress(UploadProgressInfo(
-      bytesUploaded: uploadedBytes,
-      bytesTotal: file.size,
-      partsUploaded: file.s3Multipart.uploadedParts.length,
-      partsTotal: totalParts,
-    ));
+    // Report initial progress using aggregated method
+    _emitAggregatedProgress();
 
     // If no parts to upload, we're done
     if (partsToUpload.isEmpty) {
@@ -284,13 +293,10 @@ class MultipartUploadController {
             file.s3Multipart.uploadedParts.add(part);
             uploadedBytes += part.size;
 
-            // Report progress
-            onProgress(UploadProgressInfo(
-              bytesUploaded: uploadedBytes,
-              bytesTotal: file.size,
-              partsUploaded: file.s3Multipart.uploadedParts.length,
-              partsTotal: totalParts,
-            ));
+            // Note: _uploadedBytes already updated in _uploadPart to prevent gap
+
+            // Report aggregated progress (includes both completed and in-flight parts)
+            _emitAggregatedProgress();
 
             emitEvent(S3PartUploaded(file, part, totalParts));
           }
@@ -343,11 +349,14 @@ class MultipartUploadController {
       () => _doUploadPartBytes(
         url: signResult.url,
         data: chunkData,
+        partNumber: partNumber,
         headers: signResult.headers,
         expires: signResult.expires,
       ),
     );
 
+    // All tracking (_uploadedBytes, _completedParts, _partProgress) already updated
+    // in _uploadPartData/_doUploadPartBytes to prevent gaps
     return S3Part(
       partNumber: partNumber,
       size: chunkData.length,
@@ -359,6 +368,7 @@ class MultipartUploadController {
   Future<UploadPartBytesResult> _doUploadPartBytes({
     required String url,
     required Uint8List data,
+    required int partNumber,
     Map<String, String>? headers,
     int? expires,
   }) async {
@@ -366,7 +376,7 @@ class MultipartUploadController {
 
     // Use custom callback if provided
     if (options.uploadPartBytes != null) {
-      return await options.uploadPartBytes!(
+      final result = await options.uploadPartBytes!(
         UploadPartBytesOptions(
           url: url,
           headers: headers,
@@ -374,18 +384,40 @@ class MultipartUploadController {
           size: data.length,
           expires: expires,
           signal: _createCancellationToken(),
+          onProgress: (sent, total) {
+            _updatePartProgress(partNumber, sent);
+          },
+          onComplete: (eTag) {
+            // Part completed, progress already tracked
+          },
         ),
       );
+
+      // Update tracking atomically IMMEDIATELY after custom callback returns
+      // This prevents gap where bytes are in neither _partProgress nor _uploadedBytes
+      final partSize = data.length;
+      _completedParts.add(partNumber);
+      _partProgress.remove(partNumber);
+      _uploadedBytes += partSize;
+
+      return result;
     }
 
     // Use default implementation with dio
-    return await _uploadPartData(url, data, headers, expires: expires);
+    return await _uploadPartData(
+      url,
+      data,
+      partNumber,
+      headers,
+      expires: expires,
+    );
   }
 
   /// Uploads part data using dio (supports cancellation).
   Future<UploadPartBytesResult> _uploadPartData(
     String url,
     Uint8List data,
+    int partNumber,
     Map<String, String>? headers, {
     int? expires,
   }) async {
@@ -406,7 +438,18 @@ class MultipartUploadController {
           receiveTimeout: expires != null && expires > 0 ? Duration(seconds: expires) : null,
         ),
         cancelToken: _cancelToken,
+        onSendProgress: (sent, total) {
+          // Report real-time progress for this part
+          _updatePartProgress(partNumber, sent);
+        },
       );
+
+      // Update tracking atomically IMMEDIATELY after dio.put returns
+      // This prevents gap where bytes are in neither _partProgress nor _uploadedBytes
+      final partSize = data.length;
+      _completedParts.add(partNumber);
+      _partProgress.remove(partNumber);
+      _uploadedBytes += partSize;
 
       // Dio headers are case-insensitive but stored as Map<String, List<String>>
       final headersMap = response.headers.map;
@@ -484,15 +527,7 @@ class MultipartUploadController {
     );
 
     // Emit final progress update (100%) before completing
-    // Calculate total parts for progress (use same logic as _uploadParts)
-    final chunkSize = options.chunkSize(file);
-    final totalParts = (file.size / chunkSize).ceil();
-    onProgress(UploadProgressInfo(
-      bytesUploaded: file.size,
-      bytesTotal: file.size,
-      partsUploaded: file.s3Multipart.uploadedParts.length,
-      partsTotal: totalParts,
-    ));
+    _emitAggregatedProgress();
 
     return UploadResponse(
       location: result.location,
@@ -576,6 +611,50 @@ class MultipartUploadController {
       token.cancel();
     }
     return token;
+  }
+
+  /// Emits aggregated progress (completed + in-flight parts).
+  ///
+  /// This is the SINGLE SOURCE of progress reporting to prevent mixing
+  /// completed-only and real-time progress values.
+  void _emitAggregatedProgress() {
+    // Calculate total in-progress bytes across all active parts
+    final inProgressBytes = _partProgress.values.fold<int>(0, (sum, bytes) => sum + bytes);
+
+    // Total progress = completed parts + in-progress parts
+    final totalProgress = _uploadedBytes + inProgressBytes;
+
+    // Calculate parts info
+    final chunkSize = options.chunkSize(file);
+    final totalParts = (file.size / chunkSize).ceil();
+
+    // Clamp to file size to prevent > 100% (edge case with rounding)
+    final bytesUploaded = totalProgress.clamp(0, file.size);
+
+    // Report aggregated progress
+    onProgress(UploadProgressInfo(
+      bytesUploaded: bytesUploaded,
+      bytesTotal: file.size,
+      partsUploaded: file.s3Multipart.uploadedParts.length,
+      partsTotal: totalParts,
+    ));
+  }
+
+  /// Updates progress for a specific part and reports aggregated progress.
+  void _updatePartProgress(int partNumber, int bytesUploaded) {
+    // Ignore progress updates for parts that have already completed
+    // This prevents double-counting from late onSendProgress callbacks
+    if (_completedParts.contains(partNumber)) {
+      return;
+    }
+
+    // Make progress monotonic - prevent regressions from out-of-order callbacks
+    final prev = _partProgress[partNumber] ?? 0;
+    final next = bytesUploaded > prev ? bytesUploaded : prev;
+    _partProgress[partNumber] = next;
+
+    // Emit aggregated progress from single source
+    _emitAggregatedProgress();
   }
 }
 

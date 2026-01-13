@@ -128,7 +128,6 @@ void main() {
 
     group('defaults', () {
       test('has correct default values', () {
-        expect(options.limit, equals(6));
         expect(options.maxConcurrentParts, equals(3));
       });
     });
@@ -136,7 +135,7 @@ void main() {
 
   group('RetryOptions', () {
     test('has correct defaults', () {
-      const opts = RetryOptions();
+      const opts = RetryConfig();
 
       expect(opts.maxRetries, equals(3));
       expect(opts.initialDelay, equals(const Duration(seconds: 1)));
@@ -145,7 +144,7 @@ void main() {
     });
 
     test('getDelay calculates exponential backoff', () {
-      const opts = RetryOptions(
+      const opts = RetryConfig(
         initialDelay: Duration(seconds: 1),
         exponentialBackoff: true,
       );
@@ -157,7 +156,7 @@ void main() {
     });
 
     test('getDelay respects maxDelay', () {
-      const opts = RetryOptions(
+      const opts = RetryConfig(
         initialDelay: Duration(seconds: 10),
         maxDelay: Duration(seconds: 30),
         exponentialBackoff: true,
@@ -168,7 +167,7 @@ void main() {
     });
 
     test('getDelay returns constant delay without exponential backoff', () {
-      const opts = RetryOptions(
+      const opts = RetryConfig(
         initialDelay: Duration(seconds: 5),
         exponentialBackoff: false,
       );
@@ -180,7 +179,7 @@ void main() {
 
     group('getDelay edge cases', () {
       test('attempt 0 always returns zero (first attempt has no delay)', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           initialDelay: Duration(seconds: 10),
           exponentialBackoff: true,
         );
@@ -190,7 +189,7 @@ void main() {
       });
 
       test('negative attempt returns zero', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           initialDelay: Duration(seconds: 1),
           exponentialBackoff: true,
         );
@@ -200,7 +199,7 @@ void main() {
       });
 
       test('exponential backoff formula is correct: initialDelay * 2^(attempt-1)', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           initialDelay: Duration(milliseconds: 100),
           maxDelay: Duration(hours: 1), // high max to not interfere
           exponentialBackoff: true,
@@ -221,7 +220,7 @@ void main() {
       });
 
       test('constant delay (no exponential) still returns zero for attempt 0', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           initialDelay: Duration(seconds: 5),
           exponentialBackoff: false,
         );
@@ -232,7 +231,7 @@ void main() {
       });
 
       test('maxDelay caps all retry delays', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           initialDelay: Duration(seconds: 1),
           maxDelay: Duration(seconds: 5),
           exponentialBackoff: true,
@@ -247,7 +246,7 @@ void main() {
 
     group('retryDelays array', () {
       test('uses retryDelays array values for retries', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           retryDelays: [0, 1000, 2000, 5000], // Uppy-style delays in ms
         );
 
@@ -264,7 +263,7 @@ void main() {
       });
 
       test('retryDelays uses last value for attempts beyond array length', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           retryDelays: [100, 500, 1000],
         );
 
@@ -275,7 +274,7 @@ void main() {
       });
 
       test('retryDelays takes precedence over exponentialBackoff', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           retryDelays: [500, 1000, 2000],
           initialDelay: Duration(seconds: 10),
           exponentialBackoff: true,
@@ -288,7 +287,7 @@ void main() {
       });
 
       test('empty retryDelays falls back to exponential backoff', () {
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           retryDelays: [],
           initialDelay: Duration(milliseconds: 100),
           exponentialBackoff: true,
@@ -302,7 +301,7 @@ void main() {
 
       test('Uppy-compatible retryDelays [0, 1000, 3000, 5000]', () {
         // This is the Uppy default retryDelays
-        const opts = RetryOptions(
+        const opts = RetryConfig(
           retryDelays: [0, 1000, 3000, 5000],
         );
 

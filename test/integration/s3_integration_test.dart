@@ -6,7 +6,6 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:test/test.dart';
 import 'package:fluppy/fluppy.dart';
-import 'package:fluppy/src/core/types.dart'; // Import for generic types
 
 void main() {
   late HttpServer server;
@@ -118,7 +117,8 @@ void main() {
       final uploader = S3Uploader(
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => true,
-          getChunkSize: (file) => 5 * 1024 * 1024, // 5 MB
+          getChunkSize: (file) => 5 * 1024 * 1024,
+          // 5 MB
 
           createMultipartUpload: (file) async {
             final uploadId = mockS3.createMultipartUpload(file.name);
@@ -266,7 +266,7 @@ void main() {
       final uploader = S3Uploader(
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => false,
-          retryOptions: const RetryOptions(
+          retryConfig: const RetryConfig(
             maxRetries: 0, // Disable retry for this test
           ),
           getUploadParameters: (file, opts) async {
@@ -307,7 +307,7 @@ void main() {
       final uploader = S3Uploader(
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => false,
-          retryOptions: const RetryOptions(maxRetries: 0),
+          retryConfig: const RetryConfig(maxRetries: 0),
           getUploadParameters: (file, opts) async {
             return UploadParameters(
               method: 'PUT',
@@ -392,7 +392,8 @@ void main() {
         options: S3UploaderOptions(
           shouldUseMultipart: (file) => true,
           getChunkSize: (file) => 5 * 1024 * 1024,
-          maxConcurrentParts: 1, // Upload one part at a time for predictable pause
+          maxConcurrentParts: 1,
+          // Upload one part at a time for predictable pause
 
           createMultipartUpload: (file) async {
             final uploadId = mockS3.createMultipartUpload(file.name);

@@ -1,5 +1,4 @@
 import 'package:fluppy/fluppy.dart';
-import 'package:fluppy/src/core/types.dart'; // Import for generic types
 import 'package:test/test.dart';
 
 void main() {
