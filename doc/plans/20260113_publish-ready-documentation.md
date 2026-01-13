@@ -27,7 +27,7 @@ Update Fluppy's documentation and package configuration to meet pub.dev publishi
 
 ### What's Missing or Broken
 - ❌ No `.pubignore` file - internal docs will be published
-- ❌ Placeholder URLs in pubspec.yaml (https://github.com/fluppy/fluppy-dart)
+- ❌ Placeholder URLs in pubspec.yaml (https://github.com/Neelansh-ns/fluppy)
 - ❌ 2 dartdoc warnings:
   - Unresolved reference `[retryConfig]` in [lib/src/core/fluppy.dart:62](../../lib/src/core/fluppy.dart#L62)
   - Unresolved reference `['name', 'type']` in [lib/src/s3/s3_options.dart:164](../../lib/src/s3/s3_options.dart#L164)

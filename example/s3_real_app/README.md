@@ -154,7 +154,7 @@ flutter pub get
 
 #### 3.2 Update Backend URL (if needed)
 
-If your backend is not running on `http://localhost:3000`, edit [lib/main.dart:40](lib/main.dart#L40):
+If your backend is not running on `http://localhost:3000`, edit [lib/main.dart:36](lib/main.dart#L36):
 
 ```dart
 String backendUrl = 'http://localhost:3000';  // Change if needed
@@ -476,4 +476,4 @@ If you encounter issues:
 1. Check the Troubleshooting section above
 2. Verify AWS credentials and S3 configuration
 3. Check backend server logs for errors
-4. Open an issue on the [Fluppy GitHub repository](https://github.com/fluppy/fluppy-dart/issues)
+4. Open an issue on the [Fluppy GitHub repository](https://github.com/Neelansh-ns/fluppy/issues)
