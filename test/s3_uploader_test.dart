@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart' hide ProgressCallback;
 import 'package:fluppy/fluppy.dart';
+import 'package:fluppy/src/core/types.dart';
+import 'package:fluppy/src/s3/fluppy_file_extension.dart';
 import 'package:test/test.dart';
 
 // Custom mock adapter for Dio
@@ -251,7 +253,7 @@ void main() {
         expect(signPartCallCount, equals(3)); // 15MB / 5MB = 3 parts
         expect(completeCalled, isTrue);
         expect(uploadedPartNumbers, containsAll([1, 2, 3]));
-        expect(events.whereType<PartUploaded>().length, equals(3));
+        expect(events.whereType<S3PartUploaded>().length, equals(3));
         expect(totalBytesUploaded, equals(15 * 1024 * 1024));
         expect(response.location, contains('large.bin'));
       });
@@ -328,13 +330,13 @@ void main() {
           name: 'test.bin',
         );
 
-        final partUploadedEvents = <PartUploaded>[];
+        final partUploadedEvents = <S3PartUploaded>[];
 
         await uploader.upload(
           file,
           onProgress: (_) {},
           emitEvent: (event) {
-            if (event is PartUploaded) {
+            if (event is S3PartUploaded) {
               partUploadedEvents.add(event);
             }
           },
@@ -506,9 +508,9 @@ void main() {
         );
 
         // Mark file as multipart with existing upload
-        file.uploadId = 'existing-upload-id';
-        file.key = 'existing-key';
-        file.isMultipart = true;
+        file.s3Multipart.uploadId = 'existing-upload-id';
+        file.s3Multipart.key = 'existing-key';
+        file.s3Multipart.isMultipart = true;
 
         await uploader.resume(
           file,
@@ -603,10 +605,10 @@ void main() {
         );
 
         // Simulate paused upload with in-memory part 3 (that wasn't on S3 yet)
-        file.uploadId = 'test-upload';
-        file.key = 'test-key';
-        file.isMultipart = true;
-        file.uploadedParts.add(
+        file.s3Multipart.uploadId = 'test-upload';
+        file.s3Multipart.key = 'test-key';
+        file.s3Multipart.isMultipart = true;
+        file.s3Multipart.uploadedParts.add(
           const S3Part(partNumber: 3, size: 5 * 1024 * 1024, eTag: 'etag3'),
         );
 
@@ -789,9 +791,9 @@ void main() {
         );
 
         // Simulate paused multipart upload with all parts already uploaded
-        file.uploadId = 'test-upload';
-        file.key = 'test-key';
-        file.isMultipart = true;
+        file.s3Multipart.uploadId = 'test-upload';
+        file.s3Multipart.key = 'test-key';
+        file.s3Multipart.isMultipart = true;
 
         // Resume - should recognize all parts are done and just complete
         final response = await uploader.resume(
@@ -849,9 +851,9 @@ void main() {
         );
 
         // Simulate app restart: file has uploadId but no controller exists
-        file.uploadId = 'existing-upload-id';
-        file.key = 'existing-key';
-        file.isMultipart = true;
+        file.s3Multipart.uploadId = 'existing-upload-id';
+        file.s3Multipart.key = 'existing-key';
+        file.s3Multipart.isMultipart = true;
 
         // Resume should create new controller with continueExisting: true
         final response = await uploader.resume(
@@ -1490,9 +1492,9 @@ void main() {
           Uint8List(100),
           name: 'cancel.bin',
         );
-        file.uploadId = 'test-upload';
-        file.key = 'test-key';
-        file.isMultipart = true;
+        file.s3Multipart.uploadId = 'test-upload';
+        file.s3Multipart.key = 'test-key';
+        file.s3Multipart.isMultipart = true;
 
         await uploader.cancel(file);
 

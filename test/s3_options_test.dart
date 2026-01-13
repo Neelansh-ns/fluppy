@@ -113,13 +113,13 @@ void main() {
         // Create a file that would require > 10000 parts with 5 MiB chunks
         // 10001 * 5 MiB = ~50 GB
         // For testing, we use a smaller file since we can't allocate 50GB
-        
+
         // Mock file with small size to verify the calculation doesn't break
         final file = FluppyFile.fromBytes(
           Uint8List(0), // Empty bytes
           name: 'test.bin',
         );
-        
+
         // Verify the calculation works and returns a valid chunk size
         expect(options.chunkSize(file), greaterThan(0));
         expect(options.chunkSize(file), greaterThanOrEqualTo(5 * 1024 * 1024));
@@ -324,4 +324,3 @@ void main() {
     });
   });
 }
-
