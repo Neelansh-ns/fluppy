@@ -12,10 +12,10 @@
 
 **READ THESE FILES IMMEDIATELY**:
 
-1. **[`docs/uppy-study.md`](docs/research/uppy-study.md)** - Uppy architecture reference (MOST IMPORTANT)
-2. **[`docs/plan.md`](docs/plan.md)** - How to create implementation plans
-3. **[`docs/implement.md`](docs/implement.md)** - How to implement approved plans
-4. **[`docs/research.md`](docs/research.md)** - How to research the codebase
+1. **[`doc/uppy-study.md`](doc/research/uppy-study.md)** - Uppy architecture reference (MOST IMPORTANT)
+2. **[`doc/plan.md`](doc/plan.md)** - How to create implementation plans
+3. **[`doc/implement.md`](doc/implement.md)** - How to implement approved plans
+4. **[`doc/research.md`](doc/research.md)** - How to research the codebase
 5. **[`README.md`](README.md)** - Package overview and usage
 
 This is **NOT optional**. This is a **MANDATORY** requirement.
@@ -83,7 +83,7 @@ lib/
 
 test/                            # Unit and integration tests
 example/                         # Usage examples
-docs/                            # Documentation and guides
+doc/                            # Documentation and guides
 ```
 
 ---
@@ -93,7 +93,7 @@ docs/                            # Documentation and guides
 ### 1. Uppy Alignment is CRITICAL
 
 **Before implementing ANY feature:**
-1. Read `docs/uppy-study.md` to understand Uppy's approach
+1. Read `doc/uppy-study.md` to understand Uppy's approach
 2. Match API naming conventions with Uppy
 3. Replicate event names and lifecycle hooks
 4. Document any deviations from Uppy (with reasoning)
@@ -139,10 +139,10 @@ docs/                            # Documentation and guides
 
 ### For New Features
 
-1. **Read `docs/uppy-study.md`** - Understand Uppy's implementation
-2. **Create a plan** - Follow `docs/plan.md` process
+1. **Read `doc/uppy-study.md`** - Understand Uppy's implementation
+2. **Create a plan** - Follow `doc/plan.md` process
 3. **Get approval** - Wait for user confirmation
-4. **Implement** - Follow `docs/implement.md` process with approved plan
+4. **Implement** - Follow `doc/implement.md` process with approved plan
 5. **Test** - Write comprehensive tests
 6. **Document** - Update README, dartdocs, examples
 7. **Update changelog** - Document changes
@@ -158,7 +158,7 @@ docs/                            # Documentation and guides
 ### For Refactoring
 
 1. **Verify need** - Ensure improvement is valuable
-2. **Plan changes** - Use `docs/plan.md` if complex
+2. **Plan changes** - Use `doc/plan.md` if complex
 3. **Maintain API compatibility** - Don't break existing users
 4. **Test thoroughly** - Ensure no behavior changes
 5. **Document** - Explain reasoning
@@ -298,7 +298,7 @@ fluppy.events.listen((event) {
 4. Write unit tests
 5. Update integration tests
 6. Update README
-7. Update `docs/uppy-study.md` if documenting gap
+7. Update `doc/uppy-study.md` if documenting gap
 
 ### Modifying Public API
 
@@ -484,16 +484,16 @@ Consider platform differences when implementing features.
 ## Resources
 
 ### Official Documentation
-- [Uppy Documentation](https://uppy.io/docs/)
+- [Uppy Documentation](https://uppy.io/doc/)
 - [Uppy GitHub](https://github.com/transloadit/uppy)
 - [Dart Documentation](https://dart.dev/guides)
 - [Flutter Documentation](https://flutter.dev/docs)
 
 ### Internal Documentation
-- `docs/uppy-study.md` - Comprehensive Uppy reference
-- `docs/plan.md` - Implementation planning guide
-- `docs/implement.md` - Implementation execution guide
-- `docs/research.md` - Codebase research guide
+- `doc/uppy-study.md` - Comprehensive Uppy reference
+- `doc/plan.md` - Implementation planning guide
+- `doc/implement.md` - Implementation execution guide
+- `doc/research.md` - Codebase research guide
 - `README.md` - Package overview
 
 ### Related Standards
@@ -506,17 +506,17 @@ Consider platform differences when implementing features.
 
 If you encounter issues or have questions:
 
-1. **Read the docs** - Start with `docs/uppy-study.md`
+1. **Read the docs** - Start with `doc/uppy-study.md`
 2. **Check existing code** - Look at S3Uploader as reference
 3. **Ask the user** - When design decisions are needed
-4. **Document your findings** - Use `docs/research.md` process
+4. **Document your findings** - Use `doc/research.md` process
 
 ---
 
 ## Summary
 
 **Remember:**
-1. ✅ Always read `docs/uppy-study.md` before implementing features
+1. ✅ Always read `doc/uppy-study.md` before implementing features
 2. ✅ Match Uppy's API and naming conventions
 3. ✅ Use Dart best practices (Streams, sealed classes)
 4. ✅ Write comprehensive tests

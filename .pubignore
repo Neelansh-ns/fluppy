@@ -1,7 +1,7 @@
 # Internal documentation (not for pub.dev)
-/docs/plans/
-/docs/research/
-/docs/review/
+/doc/plans/
+/doc/research/
+/doc/review/
 CLAUDE.md
 
 # Example Flutter app (too large, users can view on GitHub)
