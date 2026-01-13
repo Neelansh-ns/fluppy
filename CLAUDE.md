@@ -12,7 +12,7 @@
 
 **READ THESE FILES IMMEDIATELY**:
 
-1. **[`docs/uppy-study.md`](docs/uppy-study.md)** - Uppy architecture reference (MOST IMPORTANT)
+1. **[`docs/uppy-study.md`](docs/research/uppy-study.md)** - Uppy architecture reference (MOST IMPORTANT)
 2. **[`docs/plan.md`](docs/plan.md)** - How to create implementation plans
 3. **[`docs/implement.md`](docs/implement.md)** - How to implement approved plans
 4. **[`docs/research.md`](docs/research.md)** - How to research the codebase
