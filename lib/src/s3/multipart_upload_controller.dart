@@ -261,13 +261,8 @@ class MultipartUploadController {
       return;
     }
 
-    // Report initial progress
-    onProgress(UploadProgressInfo(
-      bytesUploaded: uploadedBytes,
-      bytesTotal: file.size,
-      partsUploaded: file.s3Multipart.uploadedParts.length,
-      partsTotal: totalParts,
-    ));
+    // Report initial progress using aggregated method
+    _emitAggregatedProgress();
 
     // If no parts to upload, we're done
     if (partsToUpload.isEmpty) {
@@ -300,13 +295,8 @@ class MultipartUploadController {
 
             // Note: _uploadedBytes already updated in _uploadPart to prevent gap
 
-            // Report progress
-            onProgress(UploadProgressInfo(
-              bytesUploaded: uploadedBytes,
-              bytesTotal: file.size,
-              partsUploaded: file.s3Multipart.uploadedParts.length,
-              partsTotal: totalParts,
-            ));
+            // Report aggregated progress (includes both completed and in-flight parts)
+            _emitAggregatedProgress();
 
             emitEvent(S3PartUploaded(file, part, totalParts));
           }
@@ -537,15 +527,7 @@ class MultipartUploadController {
     );
 
     // Emit final progress update (100%) before completing
-    // Calculate total parts for progress (use same logic as _uploadParts)
-    final chunkSize = options.chunkSize(file);
-    final totalParts = (file.size / chunkSize).ceil();
-    onProgress(UploadProgressInfo(
-      bytesUploaded: file.size,
-      bytesTotal: file.size,
-      partsUploaded: file.s3Multipart.uploadedParts.length,
-      partsTotal: totalParts,
-    ));
+    _emitAggregatedProgress();
 
     return UploadResponse(
       location: result.location,
@@ -631,6 +613,33 @@ class MultipartUploadController {
     return token;
   }
 
+  /// Emits aggregated progress (completed + in-flight parts).
+  ///
+  /// This is the SINGLE SOURCE of progress reporting to prevent mixing
+  /// completed-only and real-time progress values.
+  void _emitAggregatedProgress() {
+    // Calculate total in-progress bytes across all active parts
+    final inProgressBytes = _partProgress.values.fold<int>(0, (sum, bytes) => sum + bytes);
+
+    // Total progress = completed parts + in-progress parts
+    final totalProgress = _uploadedBytes + inProgressBytes;
+
+    // Calculate parts info
+    final chunkSize = options.chunkSize(file);
+    final totalParts = (file.size / chunkSize).ceil();
+
+    // Clamp to file size to prevent > 100% (edge case with rounding)
+    final bytesUploaded = totalProgress.clamp(0, file.size);
+
+    // Report aggregated progress
+    onProgress(UploadProgressInfo(
+      bytesUploaded: bytesUploaded,
+      bytesTotal: file.size,
+      partsUploaded: file.s3Multipart.uploadedParts.length,
+      partsTotal: totalParts,
+    ));
+  }
+
   /// Updates progress for a specific part and reports aggregated progress.
   void _updatePartProgress(int partNumber, int bytesUploaded) {
     // Ignore progress updates for parts that have already completed
@@ -639,31 +648,13 @@ class MultipartUploadController {
       return;
     }
 
-    // Update progress for this part
-    _partProgress[partNumber] = bytesUploaded;
+    // Make progress monotonic - prevent regressions from out-of-order callbacks
+    final prev = _partProgress[partNumber] ?? 0;
+    final next = bytesUploaded > prev ? bytesUploaded : prev;
+    _partProgress[partNumber] = next;
 
-    // Calculate total in-progress bytes across all active parts
-    final inProgressBytes = _partProgress.values.fold<int>(0, (sum, bytes) => sum + bytes);
-
-    // Total progress = completed parts + in-progress parts
-    final totalProgress = _uploadedBytes + inProgressBytes;
-
-    // DEBUG: Print tracking state
-    print('DEBUG _updatePartProgress: part=$partNumber, uploaded=$bytesUploaded, '
-        '_uploadedBytes=$_uploadedBytes, inProgress=$inProgressBytes, total=$totalProgress/${file.size}, '
-        '_partProgress=${_partProgress.keys.toList()}, _completed=${_completedParts.toList()}');
-
-    // Calculate parts info
-    final chunkSize = options.chunkSize(file);
-    final totalParts = (file.size / chunkSize).ceil();
-
-    // Report aggregated progress
-    onProgress(UploadProgressInfo(
-      bytesUploaded: totalProgress,
-      bytesTotal: file.size,
-      partsUploaded: file.s3Multipart.uploadedParts.length,
-      partsTotal: totalParts,
-    ));
+    // Emit aggregated progress from single source
+    _emitAggregatedProgress();
   }
 }
 
