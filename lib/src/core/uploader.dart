@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'fluppy_file.dart';
+import 'fluppy.dart' show FluppyFile;
 import 'events.dart';
-import '../s3/s3_types.dart';
+import 'types.dart';
 
 /// Callback type for progress updates.
 typedef ProgressCallback = void Function(UploadProgressInfo progress);
@@ -55,6 +55,15 @@ abstract class Uploader {
   /// Should clean up any resources and abort any ongoing requests.
   Future<void> cancel(FluppyFile file);
 
+  /// Resets uploader-specific state on a file.
+  ///
+  /// Called when an upload needs to be restarted from the beginning
+  /// (e.g., when resume is not supported). The uploader should clear
+  /// any state it has stored on the file object.
+  Future<void> resetFileState(FluppyFile file) async {
+    // Default: no-op. Uploaders with state should override.
+  }
+
   /// Checks if this uploader supports pausing.
   bool get supportsPause;
 
@@ -79,7 +88,7 @@ class RetryConfig {
   /// Multiplier for exponential backoff.
   final double backoffMultiplier;
 
-  /// Explicit retry delays in milliseconds (Uppy-style).
+  /// Explicit retry delays in milliseconds.
   ///
   /// When provided, these delays are used instead of exponential backoff.
   /// Example: `[0, 1000, 3000]` means:
@@ -100,7 +109,7 @@ class RetryConfig {
   Duration getDelay(int attempt) {
     if (attempt <= 0) return Duration.zero;
 
-    // Use explicit delays if provided (Uppy-style)
+    // Use explicit delays if provided
     if (retryDelays != null) {
       final index = attempt - 1;
       if (index < retryDelays!.length) {
