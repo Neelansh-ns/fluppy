@@ -119,7 +119,7 @@ void main() async {
         final total = _formatBytes(progress.bytesTotal);
         print('📊 ${file.name}: $percent% ($uploaded / $total)');
 
-      case PartUploaded(:final file, :final part, :final totalParts):
+      case S3PartUploaded(:final file, :final part, :final totalParts):
         print('   ${file.name}: Part ${part.partNumber}/$totalParts uploaded');
 
       case UploadPaused(:final file):
@@ -213,4 +213,3 @@ String _formatBytes(int bytes) {
   }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
-

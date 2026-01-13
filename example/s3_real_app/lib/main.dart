@@ -206,7 +206,7 @@ class _S3UploadPageState extends State<S3UploadPage> {
                   '$percentComplete% • ${_formatBytes(progress.bytesUploaded)}/${_formatBytes(progress.bytesTotal)}';
             }
             _updateFile(file.id, progress: progress.percent, status: statusMsg);
-          case PartUploaded(:final file, :final totalParts):
+          case S3PartUploaded(:final file, :final totalParts):
             // Don't update status if file is paused - keep showing "Paused" status
             if (file.status == FileStatus.paused) {
               // File was paused - this is an in-flight part that completed
