@@ -280,6 +280,13 @@ class S3Uploader extends Uploader with RetryMixin {
               receiveTimeout: params.expires != null && params.expires! > 0 ? Duration(seconds: params.expires!) : null,
             ),
             cancelToken: cancelToken,
+            onSendProgress: (sent, total) {
+              // Report real-time progress as data is being uploaded
+              onProgress(UploadProgressInfo(
+                bytesUploaded: sent,
+                bytesTotal: total,
+              ));
+            },
           );
 
           // Convert dio Response to http.Response-like structure
@@ -297,12 +304,6 @@ class S3Uploader extends Uploader with RetryMixin {
               body: dioResponse.data?.toString(),
             );
           }
-
-          // Report progress
-          onProgress(UploadProgressInfo(
-            bytesUploaded: bytes.length,
-            bytesTotal: bytes.length,
-          ));
 
           return _DioResponseWrapper(dioResponse);
         } on DioException catch (e) {
@@ -412,6 +413,10 @@ class S3Uploader extends Uploader with RetryMixin {
           receiveTimeout: options.expires != null && options.expires! > 0 ? Duration(seconds: options.expires!) : null,
         ),
         cancelToken: cancelToken,
+        onSendProgress: (sent, total) {
+          // Report real-time progress for this part upload
+          options.onProgress?.call(sent, total);
+        },
       );
 
       if (response.statusCode != null && (response.statusCode! < 200 || response.statusCode! >= 300)) {
