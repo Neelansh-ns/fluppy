@@ -482,11 +482,11 @@ class S3Uploader extends Uploader with RetryMixin {
 mixin RetryMixin {
   /// Executes an operation with retry logic.
   Future<T> withRetry<T>(
-      Future<T> Function() operation, {
-        required RetryConfig config,
-        required CancellationToken? cancellationToken,
-        bool Function(Object error)? shouldRetry,
-      }) async {
+    Future<T> Function() operation, {
+    required RetryConfig config,
+    required CancellationToken? cancellationToken,
+    bool Function(Object error)? shouldRetry,
+  }) async {
     var attempt = 0;
 
     while (true) {
