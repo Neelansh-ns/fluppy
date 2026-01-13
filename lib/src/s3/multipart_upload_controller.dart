@@ -41,6 +41,9 @@ class MultipartUploadController {
   /// Track total bytes already uploaded (from completed parts).
   int _uploadedBytes = 0;
 
+  /// Track which parts have completed to prevent double-counting from late onSendProgress callbacks.
+  final Set<int> _completedParts = {};
+
   /// Special reason for pausing (not a real error).
   static const String _pausingReason = 'pausing upload, not an actual error';
 
@@ -242,6 +245,7 @@ class MultipartUploadController {
     // Initialize tracking for completed bytes (used for progress aggregation)
     _uploadedBytes = uploadedBytes;
     _partProgress.clear(); // Clear any stale progress from previous attempts
+    _completedParts.clear(); // Clear completed parts tracking
 
     // Find parts that need uploading
     final uploadedPartNumbers = file.s3Multipart.uploadedParts.map((p) => p.partNumber).toSet();
@@ -297,6 +301,7 @@ class MultipartUploadController {
             // Update completed bytes and clear this part from in-progress tracking
             _uploadedBytes += part.size;
             _partProgress.remove(part.partNumber);
+            _completedParts.add(part.partNumber); // Mark as completed to prevent double-counting
 
             // Report progress
             onProgress(UploadProgressInfo(
@@ -613,6 +618,12 @@ class MultipartUploadController {
 
   /// Updates progress for a specific part and reports aggregated progress.
   void _updatePartProgress(int partNumber, int bytesUploaded) {
+    // Ignore progress updates for parts that have already completed
+    // This prevents double-counting from late onSendProgress callbacks
+    if (_completedParts.contains(partNumber)) {
+      return;
+    }
+
     // Update progress for this part
     _partProgress[partNumber] = bytesUploaded;
 
