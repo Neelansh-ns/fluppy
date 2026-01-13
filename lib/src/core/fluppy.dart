@@ -1,11 +1,18 @@
+library;
+
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:dio/dio.dart' hide ProgressCallback;
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
-import 'fluppy_file.dart';
+import 'types.dart';
 import 'events.dart';
 import 'uploader.dart';
-import '../s3/s3_types.dart';
+
+part 'fluppy_file.dart';
 
 /// The main Fluppy class that orchestrates file uploads.
 ///
@@ -200,7 +207,7 @@ class Fluppy {
       _emit(UploadCancelled(file));
     } catch (e) {
       final message = e.toString();
-      file.updateStatus(FileStatus.error, errorMsg: message, err: e);
+      file._updateStatusInternal(FileStatus.error, errorMsg: message, err: e);
       _emit(StateChanged(file, previousStatus, FileStatus.error));
       _emit(UploadError(file, e, message));
     } finally {
@@ -255,7 +262,8 @@ class Fluppy {
 
     if (!uploader.supportsResume) {
       // If resume not supported, restart from beginning
-      file.fullReset();
+      await uploader.resetFileState(file);
+      file.reset();
       await _uploadFile(fileId);
       return;
     }
@@ -286,18 +294,14 @@ class Fluppy {
             progress.partsTotal != null &&
             progress.partsUploaded == progress.partsTotal;
 
-        // Check file.uploadedParts.length as the source of truth (more reliable than progress.partsUploaded)
-        // This handles cases where progress.partsUploaded might be stale but file.uploadedParts is up-to-date
-        final allPartsUploadedByFile = progress.partsTotal != null && file.uploadedParts.length == progress.partsTotal;
-
-        // If all parts are uploaded (check file.uploadedParts.length first as it's more reliable),
-        // skip emitting UploadResumed. This handles the case where progress reached 100% but
+        // If all parts are uploaded, skip emitting UploadResumed.
+        // This handles the case where progress reached 100% but
         // _completeUpload() hasn't been called yet.
         // For single-part uploads (no parts info), check bytes. For multipart, check parts first.
         if (progress.partsTotal != null) {
-          // Multipart upload: check if all parts are uploaded using file.uploadedParts.length
+          // Multipart upload: check if all parts are uploaded
           // Use >= instead of == to handle edge cases where we might have more parts than expected
-          shouldSkipResumedEvent = file.uploadedParts.length >= progress.partsTotal! || allPartsUploaded;
+          shouldSkipResumedEvent = allPartsUploaded;
         } else {
           // Single-part upload: check bytes
           shouldSkipResumedEvent = allBytesUploaded;
@@ -332,7 +336,7 @@ class Fluppy {
             _emit(UploadCancelled(file));
           } else {
             final message = error.toString();
-            file.updateStatus(FileStatus.error, errorMsg: message, err: error);
+            file._updateStatusInternal(FileStatus.error, errorMsg: message, err: error);
             _emit(UploadError(file, error, message));
           }
         });
@@ -374,7 +378,7 @@ class Fluppy {
           _emit(UploadCancelled(file));
         } else {
           final message = error.toString();
-          file.updateStatus(FileStatus.error, errorMsg: message, err: error);
+          file._updateStatusInternal(FileStatus.error, errorMsg: message, err: error);
           _emit(UploadError(file, error, message));
         }
       });
@@ -487,7 +491,7 @@ class Fluppy {
   /// Updates file status and emits state change event.
   void _updateStatus(FluppyFile file, FileStatus newStatus) {
     final previousStatus = file.status;
-    file.status = newStatus;
+    file._setStatusInternal(newStatus);
     _emit(StateChanged(file, previousStatus, newStatus));
   }
 
