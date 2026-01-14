@@ -5,6 +5,7 @@ import 'package:dio/dio.dart' hide ProgressCallback;
 import '../core/fluppy.dart' show FluppyFile, FileStatus;
 import '../core/types.dart';
 import '../core/uploader.dart';
+import 'aws_signature_v4.dart';
 import 'fluppy_file_extension.dart';
 import 'multipart_upload_controller.dart';
 import 's3_options.dart';
@@ -73,6 +74,7 @@ class S3Uploader extends Uploader with RetryMixin {
         dio: _dio,
         retryConfig: _retryConfig,
         shouldRetry: _shouldRetryError,
+        getTemporaryCredentials: hasTemporaryCredentials ? getTemporaryCredentials : null,
       );
 
       _controllers[file.id] = controller;
@@ -164,6 +166,7 @@ class S3Uploader extends Uploader with RetryMixin {
         dio: _dio,
         retryConfig: _retryConfig,
         shouldRetry: _shouldRetryError,
+        getTemporaryCredentials: hasTemporaryCredentials ? getTemporaryCredentials : null,
         continueExisting: true,
       );
 
@@ -240,11 +243,38 @@ class S3Uploader extends Uploader with RetryMixin {
   }) async {
     cancellationToken?.throwIfCancelled();
 
-    // Get upload parameters
-    final params = await options.getUploadParameters(
-      file,
-      UploadOptions(signal: cancellationToken),
-    );
+    // Check if we should use temporary credentials for client-side signing
+    UploadParameters params;
+    TemporaryCredentials? tempCredentials;
+    String? objectKey;
+
+    if (hasTemporaryCredentials) {
+      // Get temporary credentials (cached if valid)
+      tempCredentials = await getTemporaryCredentials(cancellationToken: cancellationToken);
+      if (tempCredentials == null) {
+        throw S3UploadException(
+          'Temporary credentials not available. '
+          'Ensure getTemporarySecurityCredentials callback is properly configured and returns valid credentials. '
+          'The callback should return TemporaryCredentials with accessKeyId, secretAccessKey, sessionToken, bucket, and region.',
+        );
+      }
+
+      // Determine object key
+      objectKey = options.objectKey(file);
+
+      // Sign URL client-side using temporary credentials
+      params = tempCredentials.createPresignedUrl(
+        key: objectKey,
+        contentType: file.type ?? 'application/octet-stream',
+        expires: 3600,
+      );
+    } else {
+      // Fall back to backend signing
+      params = await options.getUploadParameters(
+        file,
+        UploadOptions(signal: cancellationToken),
+      );
+    }
     cancellationToken?.throwIfCancelled();
 
     // Get file data
@@ -266,17 +296,14 @@ class S3Uploader extends Uploader with RetryMixin {
         }
 
         try {
-          // Ensure content-type is set for binary data (Dio requirement)
+          // Use only the headers that were signed
           final uploadHeaders = Map<String, String>.from(params.headers ?? {});
-          if (!uploadHeaders.containsKey('content-type') && !uploadHeaders.containsKey('Content-Type')) {
-            uploadHeaders['Content-Type'] = file.type ?? 'application/octet-stream';
-          }
 
           final dioResponse = await _dio.put(
             params.url,
             data: bytes,
             options: Options(
-              headers: uploadHeaders,
+              headers: uploadHeaders.isEmpty ? null : uploadHeaders,
               receiveTimeout: params.expires != null && params.expires! > 0 ? Duration(seconds: params.expires!) : null,
             ),
             cancelToken: cancelToken,
@@ -337,7 +364,39 @@ class S3Uploader extends Uploader with RetryMixin {
 
     // Extract ETag and location
     final eTag = response.headers['etag'];
-    final location = response.headers['location'] ?? params.url.split('?').first;
+    // For temp creds, construct location from bucket/region/key
+    String location;
+    if (tempCredentials != null && objectKey != null) {
+      // Construct URL with proper path encoding (match signature encoding), then decode for cleaner display
+      final pathSegments = objectKey.split('/').map((s) {
+        var encoded = Uri.encodeComponent(s);
+        // Encode parentheses to match signature encoding (for consistency)
+        encoded = encoded.replaceAll('(', '%28').replaceAll(')', '%29');
+        return encoded;
+      }).join('/');
+      final encodedUrl = 'https://${tempCredentials.bucket}.s3.${tempCredentials.region}.amazonaws.com/$pathSegments';
+      // Decode the path for cleaner display (same as non-temp creds)
+      try {
+        final uri = Uri.parse(encodedUrl);
+        final decodedPath = Uri.decodeComponent(uri.path);
+        // Preserve port if present
+        location = '${uri.scheme}://${uri.authority}$decodedPath';
+      } catch (_) {
+        location = encodedUrl;
+      }
+    } else {
+      // Decode URL path for cleaner display (presigned URLs may have encoded paths)
+      final rawLocation = response.headers['location'] ?? params.url.split('?').first;
+      try {
+        final uri = Uri.parse(rawLocation);
+        // Decode the path component to remove %2F encoding
+        final decodedPath = Uri.decodeComponent(uri.path);
+        // Reconstruct with decoded path for cleaner display (preserve port if present)
+        location = '${uri.scheme}://${uri.authority}$decodedPath';
+      } catch (_) {
+        location = rawLocation;
+      }
+    }
 
     return UploadResponse(
       location: location,

@@ -466,10 +466,11 @@ void main() async {
 When something isn't working as expected:
 
 1. **Read the existing code** thoroughly
-2. **Check `docs/uppy-study.md`** - How does Uppy handle this?
-3. **Look at similar implementations** - How did S3Uploader do it?
-4. **Check the tests** - What's the expected behavior?
-5. **Present the issue clearly** with context
+2. **Check `doc/uppy-study.md`** - How does Uppy handle this?
+3. **Check `doc/`** - How does other research and plans implemented look like?
+4. **Look at similar implementations** - How did S3Uploader do it?
+5. **Check the tests** - What's the expected behavior?
+6. **Present the issue clearly** with context
 
 ### When to Ask for Help
 

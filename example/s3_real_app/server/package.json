@@ -7,15 +7,20 @@
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": ["fluppy", "s3", "presigned-urls"],
+  "keywords": [
+    "fluppy",
+    "s3",
+    "presigned-urls"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
     "@aws-sdk/client-s3": "^3.470.0",
+    "@aws-sdk/client-sts": "^3.968.0",
     "@aws-sdk/s3-request-presigner": "^3.470.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

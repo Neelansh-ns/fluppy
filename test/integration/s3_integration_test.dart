@@ -16,6 +16,7 @@ void main() {
     mockS3 = MockS3Server();
     server = await io.serve(mockS3.handler, 'localhost', 0);
     baseUrl = 'http://localhost:${server.port}';
+    mockS3.setBaseUrl(baseUrl);
   });
 
   tearDown(() async {
@@ -507,6 +508,12 @@ class MockS3Server {
   int failureCountBeforeSuccess = 0;
   int _currentAttemptCount = 0;
 
+  String? _baseUrl;
+
+  void setBaseUrl(String baseUrl) {
+    _baseUrl = baseUrl;
+  }
+
   Future<shelf.Response> handler(shelf.Request request) async {
     try {
       // Call before upload hook if set
@@ -568,11 +575,14 @@ class MockS3Server {
     );
     uploadedFiles[filename] = data;
 
+    // Construct location URL with port preserved
+    final location = _baseUrl != null ? '$_baseUrl/bucket/$filename' : request.requestedUri.toString();
+
     return shelf.Response.ok(
       '',
       headers: {
         'etag': '"mock-etag-${DateTime.now().millisecondsSinceEpoch}"',
-        'location': request.requestedUri.toString(),
+        'location': location,
       },
     );
   }
@@ -653,5 +663,6 @@ class MockS3Server {
     onBeforeUpload = null;
     failureCountBeforeSuccess = 0;
     _currentAttemptCount = 0;
+    _baseUrl = null;
   }
 }

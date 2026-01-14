@@ -92,13 +92,21 @@ void main() async {
           );
         },
 
-        // Optional: Get temporary credentials for direct S3 access
+        // Optional: Get temporary credentials for client-side signing
+        // When provided, getUploadParameters and signPart are NOT called
+        // Fluppy signs URLs client-side instead, reducing backend round-trips by ~20%
         // getTemporarySecurityCredentials: (options) async {
+        //   // Call your backend to get temporary AWS credentials from STS
         //   final response = await http.get(
         //     Uri.parse('https://api.example.com/sts-token'),
         //   );
-        //   return TemporaryCredentials.fromJson(jsonDecode(response.body));
+        //   final data = jsonDecode(response.body);
+        //   // Expected format: { credentials: { AccessKeyId, SecretAccessKey, SessionToken, Expiration }, bucket, region }
+        //   return TemporaryCredentials.fromJson(data);
         // },
+
+        // Optional: Custom object key generation (defaults to file.name)
+        // getObjectKey: (file) => 'uploads/${DateTime.now().millisecondsSinceEpoch}/${file.name}',
       ),
     ),
     maxConcurrent: 3, // Max 3 concurrent file uploads

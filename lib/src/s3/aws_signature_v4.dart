@@ -88,7 +88,33 @@ class AwsSignatureV4 {
     final amzDate = _formatAmzDate(now);
 
     // Build canonical URI
-    final canonicalUri = '/${Uri.encodeComponent(key)}';
+    // AWS Signature V4 requires path encoding (preserve slashes, encode other special chars)
+    // Uri.encodeComponent doesn't encode parentheses () which are unreserved in RFC 3986,
+    // but AWS requires them to be encoded for signature matching
+    final pathEncodedKey = key.split('/').map((segment) {
+      // First encode with Uri.encodeComponent (handles most special chars)
+      var encoded = Uri.encodeComponent(segment);
+      // Then manually encode parentheses which Uri.encodeComponent leaves unencoded
+      encoded = encoded.replaceAll('(', '%28').replaceAll(')', '%29');
+      return encoded;
+    }).join('/');
+    final canonicalUri = '/$pathEncodedKey';
+
+    // Build canonical headers and signed headers list
+    // Headers must be in alphabetical order (case-insensitive) for AWS Signature V4
+    final host = '$bucket.s3.$region.amazonaws.com';
+    final headerMap = <String, String>{'host': host};
+
+    if (contentType != null) {
+      headerMap['content-type'] = contentType;
+    }
+
+    // Sort headers alphabetically by key (case-insensitive)
+    final sortedHeaderKeys = headerMap.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final headerLines = sortedHeaderKeys.map((key) => '${key.toLowerCase()}:${headerMap[key]}').toList();
+    final canonicalHeaders = '${headerLines.join('\n')}\n';
+    final signedHeaders = sortedHeaderKeys.map((k) => k.toLowerCase()).join(';');
 
     // Build query parameters
     final queryParams = <String, String>{
@@ -96,7 +122,7 @@ class AwsSignatureV4 {
       'X-Amz-Credential': '$accessKeyId/$dateStamp/$region/$service/aws4_request',
       'X-Amz-Date': amzDate,
       'X-Amz-Expires': expires.toString(),
-      'X-Amz-SignedHeaders': 'host',
+      'X-Amz-SignedHeaders': signedHeaders,
     };
 
     if (sessionToken != null) {
@@ -115,11 +141,6 @@ class AwsSignatureV4 {
     final sortedKeys = queryParams.keys.toList()..sort();
     final canonicalQueryString =
         sortedKeys.map((k) => '${Uri.encodeQueryComponent(k)}=${Uri.encodeQueryComponent(queryParams[k]!)}').join('&');
-
-    // Build canonical headers
-    final host = '$bucket.s3.$region.amazonaws.com';
-    final canonicalHeaders = 'host:$host\n';
-    const signedHeaders = 'host';
 
     // Build canonical request
     final canonicalRequest = [

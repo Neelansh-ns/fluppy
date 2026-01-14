@@ -7,13 +7,13 @@ A modular, headless file upload library for Dart inspired by [Uppy](https://uppy
 
 ## Features
 
--   🚀 **S3 Uploads** - Direct uploads to S3 and S3-compatible storage
--   📦 **Multipart Support** - Automatic chunking for large files
--   ⏸️ **Pause/Resume** - Full control over upload lifecycle
--   🔄 **Retry** - Automatic retry with exponential backoff
--   📊 **Progress Tracking** - Real-time upload progress events
--   🔐 **Temporary Credentials** - Support for STS tokens
--   🎯 **Headless** - Bring your own UI
+- 🚀 **S3 Uploads** - Direct uploads to S3 and S3-compatible storage
+- 📦 **Multipart Support** - Automatic chunking for large files
+- ⏸️ **Pause/Resume** - Full control over upload lifecycle
+- 🔄 **Retry** - Automatic retry with exponential backoff
+- 📊 **Progress Tracking** - Real-time upload progress events
+- 🔐 **Temporary Credentials** - Support for STS tokens
+- 🎯 **Headless** - Bring your own UI
 
 ## Installation
 
@@ -21,7 +21,7 @@ Add Fluppy to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-    fluppy: ^0.2.0
+  fluppy: ^0.2.0
 ```
 
 Or install via command line:
@@ -31,6 +31,8 @@ dart pub add fluppy
 ```
 
 ## Quick Start
+
+### Backend Signing Mode (Default)
 
 ```dart
 import 'package:fluppy/fluppy.dart';
@@ -79,29 +81,92 @@ final fluppy = Fluppy(
     ),
   ),
 );
+```
+
+### Temporary Credentials Mode (Faster, ~20% improvement)
+
+When using temporary credentials, Fluppy signs URLs client-side, eliminating backend signing requests:
+
+```dart
+final fluppy = Fluppy(
+  uploader: S3Uploader(
+    options: S3UploaderOptions(
+      // Get temporary AWS credentials from your backend (STS)
+      getTemporarySecurityCredentials: (options) async {
+        final response = await http.get(
+          Uri.parse('https://api.example.com/sts-token'),
+        );
+        final data = jsonDecode(response.body);
+        return TemporaryCredentials.fromJson(data);
+      },
+
+      // Still need backend for S3 API operations
+      createMultipartUpload: (file) async {
+        final response = await myBackend.createMultipart(file.name);
+        return CreateMultipartUploadResult(
+          uploadId: response.uploadId,
+          key: response.key,
+        );
+      },
+      completeMultipartUpload: (file, options) async {
+        final response = await myBackend.completeMultipart(
+          options.uploadId,
+          options.key,
+          options.parts,
+        );
+        return CompleteMultipartResult(location: response.location);
+      },
+      listParts: (file, options) async {
+        return await myBackend.listParts(options.uploadId, options.key);
+      },
+      abortMultipartUpload: (file, options) async {
+        await myBackend.abortMultipart(options.uploadId, options.key);
+      },
+
+      // Optional: Custom object key generation
+      getObjectKey: (file) => 'uploads/${Date.now().millisecondsSinceEpoch}-${file.name}',
+
+      // NOTE: getUploadParameters and signPart are NOT needed when temp creds provided!
+    ),
+  ),
+);
+```
+
+**Benefits of Temporary Credentials**:
+
+- ~20% faster uploads (reduced request overhead)
+- Reduced server load (no signing requests)
+- Client-side signing using AWS Signature V4
+
+**Security Considerations**:
+
+- Credentials are exposed to the client (use temporary credentials only!)
+- Use AWS STS to generate short-lived credentials
+- Scope IAM permissions to specific bucket/operations
 
 // Add a file
 final file = fluppy.addFile(FluppyFile.fromPath('/path/to/video.mp4'));
 
 // Listen to events
 fluppy.events.listen((event) {
-  switch (event) {
-    case FileAdded(:final file):
-      print('Added: ${file.name}');
+switch (event) {
+case FileAdded(:final file):
+print('Added: ${file.name}');
     case UploadProgress(:final file, :final progress):
       print('${file.name}: ${progress.percent.toStringAsFixed(1)}%');
-    case UploadComplete(:final file, :final response):
-      print('Complete: ${response?.location}');
-    case UploadError(:final file, :final error):
-      print('Error: $error');
-    default:
-      break;
-  }
+case UploadComplete(:final file, :final response):
+print('Complete: ${response?.location}');
+case UploadError(:final file, :final error):
+print('Error: $error');
+default:
+break;
+}
 });
 
 // Start upload
 await fluppy.upload();
-```
+
+````
 
 ## API Reference
 
@@ -130,7 +195,7 @@ await fluppy.resume(fileId);     // Resume upload
 await fluppy.retry(fileId);      // Retry failed upload
 await fluppy.cancel(fileId);     // Cancel upload
 fluppy.removeFile(fileId);       // Remove file from queue
-```
+````
 
 ## Examples
 
