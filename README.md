@@ -21,7 +21,7 @@ Add Fluppy to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  fluppy: ^0.2.0
+  fluppy: ^0.2.1
 ```
 
 Or install via command line:
