@@ -1734,6 +1734,107 @@ void main() {
         expect(uploaderWithout.hasTemporaryCredentials, isFalse);
       });
 
+      test('multipart upload uses temp credentials to sign part URLs client-side', () async {
+        var signPartCallCount = 0;
+        var credentialsCallCount = 0;
+        final uploadedPartNumbers = <int>[];
+
+        final uploader = S3Uploader(
+          dio: createMockDio(),
+          options: S3UploaderOptions(
+            shouldUseMultipart: (file) => true,
+            getChunkSize: (file) => 5 * 1024 * 1024, // 5 MB chunks
+            getTemporarySecurityCredentials: (opts) async {
+              credentialsCallCount++;
+              return TemporaryCredentials(
+                accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+                secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                sessionToken: 'token',
+                expiration: DateTime.now().add(const Duration(hours: 1)),
+                bucket: 'test-bucket',
+                region: 'us-east-1',
+              );
+            },
+            createMultipartUpload: (file) async {
+              return CreateMultipartUploadResult(
+                uploadId: 'test-upload-id',
+                key: 'test-key/${file.name}',
+              );
+            },
+            signPart: (file, opts) async {
+              signPartCallCount++; // Should NOT be called when temp creds available
+              uploadedPartNumbers.add(opts.partNumber);
+              return SignPartResult(
+                url: 'https://mock.s3.com/part-${opts.partNumber}',
+              );
+            },
+            listParts: (file, opts) async => [],
+            completeMultipartUpload: (file, opts) async {
+              expect(opts.parts.length, equals(3));
+              return CompleteMultipartResult(
+                location: 'https://mock.s3.com/completed/${file.name}',
+              );
+            },
+            abortMultipartUpload: (file, opts) async {},
+            getUploadParameters: (file, opts) => throw UnimplementedError(),
+          ),
+        );
+
+        final file = FluppyFile.fromBytes(
+          Uint8List(15 * 1024 * 1024), // 15 MB - will need 3 parts
+          name: 'large.bin',
+        );
+
+        final response = await uploader.upload(
+          file,
+          onProgress: (_) {},
+          emitEvent: (_) {},
+        );
+
+        // Verify signPart was NOT called (temp creds used instead)
+        expect(signPartCallCount, equals(0));
+        // Verify credentials were fetched
+        expect(credentialsCallCount, greaterThan(0));
+        // Verify upload succeeded
+        expect(response.location, isNotNull);
+        // Verify all parts were uploaded
+        expect(file.uploadedParts.length, equals(3));
+      });
+
+      test('multipart upload falls back to backend when temp creds not provided', () async {
+        var signPartCallCount = 0;
+
+        final uploader = S3Uploader(
+          dio: createMockDio(),
+          options: S3UploaderOptions(
+            shouldUseMultipart: (file) => true,
+            getChunkSize: (file) => 5 * 1024 * 1024,
+            createMultipartUpload: (file) async => const CreateMultipartUploadResult(
+              uploadId: 'test',
+              key: 'test',
+            ),
+            signPart: (file, opts) async {
+              signPartCallCount++; // SHOULD be called when temp creds not available
+              return const SignPartResult(url: 'https://mock.s3.com/part');
+            },
+            listParts: (file, opts) async => [],
+            completeMultipartUpload: (file, opts) async => const CompleteMultipartResult(),
+            abortMultipartUpload: (file, opts) async {},
+            getUploadParameters: (file, opts) => throw UnimplementedError(),
+          ),
+        );
+
+        final file = FluppyFile.fromBytes(
+          Uint8List(10 * 1024 * 1024), // 10 MB = 2 parts
+          name: 'test.bin',
+        );
+
+        await uploader.upload(file, onProgress: (_) {}, emitEvent: (_) {});
+
+        // Verify signPart WAS called (fallback to backend)
+        expect(signPartCallCount, equals(2));
+      });
+
       test('single-part upload uses temp credentials to sign URL client-side', () async {
         var getParamsCalled = false;
         var credentialsCallCount = 0;

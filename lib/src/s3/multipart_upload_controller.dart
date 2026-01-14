@@ -6,6 +6,7 @@ import 'package:dio/dio.dart' hide ProgressCallback;
 import '../core/fluppy.dart' show FluppyFile;
 import '../core/types.dart';
 import '../core/uploader.dart';
+import 'aws_signature_v4.dart';
 import 'fluppy_file_extension.dart';
 import 's3_events.dart';
 import 's3_options.dart';
@@ -26,6 +27,10 @@ class MultipartUploadController {
   final Dio dio;
   final RetryConfig retryConfig;
   final bool Function(Object error) shouldRetry;
+
+  /// Function to get temporary credentials (if available).
+  /// Returns null if temp creds not configured or unavailable.
+  final Future<TemporaryCredentials?> Function({CancellationToken? cancellationToken})? getTemporaryCredentials;
 
   // State
   UploadState _state = UploadState.idle;
@@ -55,6 +60,7 @@ class MultipartUploadController {
     required this.dio,
     required this.retryConfig,
     required this.shouldRetry,
+    this.getTemporaryCredentials,
     bool continueExisting = false,
   }) : _uploadStarted = continueExisting;
 
@@ -323,23 +329,53 @@ class MultipartUploadController {
     }
 
     // Get chunk data
-
     final chunkData = await file.getChunk(start, end);
 
     _throwIfCancelled();
 
-    // Sign the part
+    // Sign the part - use temp creds if available, otherwise fall back to backend callback
+    SignPartResult signResult;
 
-    final signResult = await options.signPart(
-      file,
-      SignPartOptions(
-        uploadId: file.s3Multipart.uploadId!,
-        key: file.s3Multipart.key!,
-        partNumber: partNumber,
-        body: chunkData,
-        signal: _createCancellationToken(),
-      ),
-    );
+    if (getTemporaryCredentials != null && options.getTemporarySecurityCredentials != null) {
+      // Get temporary credentials (cached if valid)
+      final credentials = await getTemporaryCredentials!(
+        cancellationToken: _createCancellationToken(),
+      );
+
+      if (credentials != null) {
+        // Sign part URL client-side using temporary credentials (via extension method)
+        signResult = credentials.createPresignedPartUrl(
+          key: file.s3Multipart.key!,
+          uploadId: file.s3Multipart.uploadId!,
+          partNumber: partNumber,
+          expires: 3600, // 1 hour default expiration
+        );
+      } else {
+        // Temp creds unavailable, fall back to backend signing
+        signResult = await options.signPart(
+          file,
+          SignPartOptions(
+            uploadId: file.s3Multipart.uploadId!,
+            key: file.s3Multipart.key!,
+            partNumber: partNumber,
+            body: chunkData,
+            signal: _createCancellationToken(),
+          ),
+        );
+      }
+    } else {
+      // No temp creds configured, use backend signing
+      signResult = await options.signPart(
+        file,
+        SignPartOptions(
+          uploadId: file.s3Multipart.uploadId!,
+          key: file.s3Multipart.key!,
+          partNumber: partNumber,
+          body: chunkData,
+          signal: _createCancellationToken(),
+        ),
+      );
+    }
 
     _throwIfCancelled();
 

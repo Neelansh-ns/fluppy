@@ -74,6 +74,7 @@ class S3Uploader extends Uploader with RetryMixin {
         dio: _dio,
         retryConfig: _retryConfig,
         shouldRetry: _shouldRetryError,
+        getTemporaryCredentials: hasTemporaryCredentials ? getTemporaryCredentials : null,
       );
 
       _controllers[file.id] = controller;
@@ -165,6 +166,7 @@ class S3Uploader extends Uploader with RetryMixin {
         dio: _dio,
         retryConfig: _retryConfig,
         shouldRetry: _shouldRetryError,
+        getTemporaryCredentials: hasTemporaryCredentials ? getTemporaryCredentials : null,
         continueExisting: true,
       );
 
@@ -259,8 +261,7 @@ class S3Uploader extends Uploader with RetryMixin {
       objectKey = options.objectKey(file);
 
       // Sign URL client-side using temporary credentials
-      final signer = AwsSignatureV4.fromCredentials(tempCredentials);
-      params = signer.createPresignedUrl(
+      params = tempCredentials.createPresignedUrl(
         key: objectKey,
         contentType: file.type,
         expires: 3600, // 1 hour default expiration
