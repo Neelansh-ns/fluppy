@@ -379,7 +379,8 @@ class S3Uploader extends Uploader with RetryMixin {
       try {
         final uri = Uri.parse(encodedUrl);
         final decodedPath = Uri.decodeComponent(uri.path);
-        location = '${uri.scheme}://${uri.host}$decodedPath';
+        // Preserve port if present
+        location = '${uri.scheme}://${uri.authority}$decodedPath';
       } catch (_) {
         location = encodedUrl;
       }
@@ -390,8 +391,8 @@ class S3Uploader extends Uploader with RetryMixin {
         final uri = Uri.parse(rawLocation);
         // Decode the path component to remove %2F encoding
         final decodedPath = Uri.decodeComponent(uri.path);
-        // Reconstruct with decoded path for cleaner display
-        location = '${uri.scheme}://${uri.host}$decodedPath';
+        // Reconstruct with decoded path for cleaner display (preserve port if present)
+        location = '${uri.scheme}://${uri.authority}$decodedPath';
       } catch (_) {
         location = rawLocation;
       }
