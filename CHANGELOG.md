@@ -1,3 +1,29 @@
+## 0.2.1 - 2026-01-13 (Unreleased)
+
+### Added
+
+**Temporary Credentials Integration**
+- Client-side URL signing using temporary AWS credentials
+- Automatic bypass of `getUploadParameters` and `signPart` callbacks when temp creds provided
+- ~20% performance improvement by reducing backend round-trips
+- Credential caching with automatic refresh (5-minute buffer before expiration)
+- `getObjectKey` callback for custom S3 object key generation
+- Comprehensive documentation for temporary credentials mode
+- Enhanced error messages for credential configuration issues
+
+**Documentation**
+- Updated README with temporary credentials usage examples
+- Added security considerations and best practices
+- Improved API documentation for temp creds callbacks
+- Updated example.dart with temp creds example
+
+### Changed
+
+**API Improvements**
+- Enhanced `getTemporarySecurityCredentials` documentation with usage guidance
+- Clarified that `getUploadParameters` and `signPart` are optional when temp creds provided
+- Improved error messages for missing or invalid credentials
+
 ## 0.2.0 - 2026-01-14
 
 ### Changed

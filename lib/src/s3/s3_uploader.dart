@@ -253,7 +253,9 @@ class S3Uploader extends Uploader with RetryMixin {
       tempCredentials = await getTemporaryCredentials(cancellationToken: cancellationToken);
       if (tempCredentials == null) {
         throw S3UploadException(
-          'Temporary credentials not available. Ensure getTemporarySecurityCredentials is properly configured.',
+          'Temporary credentials not available. '
+          'Ensure getTemporarySecurityCredentials callback is properly configured and returns valid credentials. '
+          'The callback should return TemporaryCredentials with accessKeyId, secretAccessKey, sessionToken, bucket, and region.',
         );
       }
 

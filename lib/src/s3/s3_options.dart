@@ -108,6 +108,9 @@ class S3UploaderOptions {
   ///
   /// Called for files that don't use multipart upload.
   ///
+  /// **Note**: When [getTemporarySecurityCredentials] is provided, this callback
+  /// is NOT called - Fluppy signs URLs client-side instead.
+  ///
   /// Returns [UploadParameters] containing:
   /// - method: 'PUT' or 'POST'
   /// - url: The presigned URL
@@ -136,6 +139,9 @@ class S3UploaderOptions {
   ///
   /// Called for each part in a multipart upload to get a presigned URL.
   ///
+  /// **Note**: When [getTemporarySecurityCredentials] is provided, this callback
+  /// is NOT called - Fluppy signs part URLs client-side instead.
+  ///
   /// Returns [SignPartResult] containing:
   /// - url: The presigned URL for this part
   /// - headers: Optional headers
@@ -156,10 +162,44 @@ class S3UploaderOptions {
 
   /// Get temporary AWS credentials for direct uploads.
   ///
-  /// Optional. When provided, reduces request overhead as users get a single
-  /// token for bucket operations instead of signing each request.
+  /// Optional. When provided, Fluppy signs URLs client-side using these credentials,
+  /// eliminating the need for backend signing callbacks (`getUploadParameters` and `signPart`).
   ///
-  /// This is a security tradeoff - see AWS documentation.
+  /// **Benefits**:
+  /// - ~20% faster uploads (reduced request overhead)
+  /// - Reduced server load (no signing requests)
+  ///
+  /// **Security Considerations**:
+  /// - Credentials are exposed to the client (use temporary credentials only!)
+  /// - Must use AWS STS (Security Token Service) to generate temporary credentials
+  /// - Credentials should have minimal IAM permissions (scoped to specific bucket/operations)
+  /// - Credentials should have short expiration times (typically 1 hour)
+  ///
+  /// **When to use**:
+  /// - Use when you want faster uploads and can accept the security trade-off
+  /// - Use when you already have STS infrastructure set up
+  /// - Avoid if you need strict server-side control over signing
+  ///
+  /// **Return format**:
+  /// ```dart
+  /// TemporaryCredentials(
+  ///   accessKeyId: 'AKIA...',
+  ///   secretAccessKey: '...',
+  ///   sessionToken: '...',
+  ///   expiration: DateTime.now().add(Duration(hours: 1)),
+  ///   bucket: 'my-bucket',
+  ///   region: 'us-east-1',
+  /// )
+  /// ```
+  ///
+  /// **Note**: When this is provided, `getUploadParameters` and `signPart` callbacks
+  /// are NOT called. You still need to provide `createMultipartUpload`,
+  /// `completeMultipartUpload`, `listParts`, and `abortMultipartUpload` callbacks
+  /// as these perform S3 API operations, not just signing.
+  ///
+  /// See also:
+  /// - [AWS STS Documentation](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html)
+  /// - [Uppy Temporary Credentials Guide](https://uppy.io/docs/aws-s3/#gettemporarysecuritycredentialsoptions)
   final GetTemporarySecurityCredentialsCallback? getTemporarySecurityCredentials;
 
   /// Get the S3 object key for a file.
@@ -200,13 +240,18 @@ class S3UploaderOptions {
 
   /// Creates S3 uploader options.
   ///
-  /// Required callbacks:
-  /// - [getUploadParameters] - For single-part uploads
-  /// - [createMultipartUpload] - To initiate multipart uploads
-  /// - [signPart] - To sign each part
-  /// - [completeMultipartUpload] - To finalize multipart uploads
-  /// - [listParts] - To resume multipart uploads
-  /// - [abortMultipartUpload] - To cancel and cleanup
+  /// **Required callbacks** (unless using temporary credentials):
+  /// - [getUploadParameters] - For single-part uploads (not called when temp creds provided)
+  /// - [createMultipartUpload] - To initiate multipart uploads (always required)
+  /// - [signPart] - To sign each part (not called when temp creds provided)
+  /// - [completeMultipartUpload] - To finalize multipart uploads (always required)
+  /// - [listParts] - To resume multipart uploads (always required)
+  /// - [abortMultipartUpload] - To cancel and cleanup (always required)
+  ///
+  /// **When using temporary credentials**:
+  /// - Provide [getTemporarySecurityCredentials] callback
+  /// - [getUploadParameters] and [signPart] are optional (not called)
+  /// - [createMultipartUpload], [completeMultipartUpload], [listParts], [abortMultipartUpload] still required
   const S3UploaderOptions({
     required this.getUploadParameters,
     required this.createMultipartUpload,

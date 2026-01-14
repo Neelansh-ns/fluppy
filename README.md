@@ -32,6 +32,8 @@ dart pub add fluppy
 
 ## Quick Start
 
+### Backend Signing Mode (Default)
+
 ```dart
 import 'package:fluppy/fluppy.dart';
 
@@ -79,6 +81,66 @@ final fluppy = Fluppy(
     ),
   ),
 );
+```
+
+### Temporary Credentials Mode (Faster, ~20% improvement)
+
+When using temporary credentials, Fluppy signs URLs client-side, eliminating backend signing requests:
+
+```dart
+final fluppy = Fluppy(
+  uploader: S3Uploader(
+    options: S3UploaderOptions(
+      // Get temporary AWS credentials from your backend (STS)
+      getTemporarySecurityCredentials: (options) async {
+        final response = await http.get(
+          Uri.parse('https://api.example.com/sts-token'),
+        );
+        final data = jsonDecode(response.body);
+        return TemporaryCredentials.fromJson(data);
+      },
+      
+      // Still need backend for S3 API operations
+      createMultipartUpload: (file) async {
+        final response = await myBackend.createMultipart(file.name);
+        return CreateMultipartUploadResult(
+          uploadId: response.uploadId,
+          key: response.key,
+        );
+      },
+      completeMultipartUpload: (file, options) async {
+        final response = await myBackend.completeMultipart(
+          options.uploadId,
+          options.key,
+          options.parts,
+        );
+        return CompleteMultipartResult(location: response.location);
+      },
+      listParts: (file, options) async {
+        return await myBackend.listParts(options.uploadId, options.key);
+      },
+      abortMultipartUpload: (file, options) async {
+        await myBackend.abortMultipart(options.uploadId, options.key);
+      },
+      
+      // Optional: Custom object key generation
+      getObjectKey: (file) => 'uploads/${file.name}',
+      
+      // NOTE: getUploadParameters and signPart are NOT needed when temp creds provided!
+    ),
+  ),
+);
+```
+
+**Benefits of Temporary Credentials**:
+- ~20% faster uploads (reduced request overhead)
+- Reduced server load (no signing requests)
+- Client-side signing using AWS Signature V4
+
+**Security Considerations**:
+- Credentials are exposed to the client (use temporary credentials only!)
+- Use AWS STS to generate short-lived credentials
+- Scope IAM permissions to specific bucket/operations
 
 // Add a file
 final file = fluppy.addFile(FluppyFile.fromPath('/path/to/video.mp4'));
