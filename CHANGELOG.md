@@ -1,4 +1,4 @@
-## 0.2.1 - 2026-01-13 (Unreleased)
+## 0.2.1 - 2026-01-14
 
 ### Added
 
@@ -26,6 +26,16 @@
 - Enhanced `getTemporarySecurityCredentials` documentation with usage guidance
 - Clarified that `getUploadParameters` and `signPart` are optional when temp creds provided
 - Improved error messages for missing or invalid credentials
+
+### Fixed
+
+**AWS Signature V4 & URL Handling**
+
+- Fixed AWS Signature V4 canonical request formatting (header ordering and encoding)
+- Fixed URL path encoding for special characters (spaces, parentheses) in object keys
+- Fixed location URL display consistency between temp credentials and backend modes
+- Fixed port number preservation in location URLs when decoding paths
+- Fixed integration test mock server to preserve port numbers in location headers
 
 ## 0.2.0 - 2026-01-14
 
