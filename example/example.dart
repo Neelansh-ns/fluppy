@@ -104,7 +104,7 @@ void main() async {
         //   // Expected format: { credentials: { AccessKeyId, SecretAccessKey, SessionToken, Expiration }, bucket, region }
         //   return TemporaryCredentials.fromJson(data);
         // },
-        
+
         // Optional: Custom object key generation (defaults to file.name)
         // getObjectKey: (file) => 'uploads/${DateTime.now().millisecondsSinceEpoch}/${file.name}',
       ),

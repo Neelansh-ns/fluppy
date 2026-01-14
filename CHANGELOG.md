@@ -3,6 +3,7 @@
 ### Added
 
 **Temporary Credentials Integration**
+
 - Client-side URL signing using temporary AWS credentials
 - Automatic bypass of `getUploadParameters` and `signPart` callbacks when temp creds provided
 - ~20% performance improvement by reducing backend round-trips
@@ -12,6 +13,7 @@
 - Enhanced error messages for credential configuration issues
 
 **Documentation**
+
 - Updated README with temporary credentials usage examples
 - Added security considerations and best practices
 - Improved API documentation for temp creds callbacks
@@ -20,6 +22,7 @@
 ### Changed
 
 **API Improvements**
+
 - Enhanced `getTemporarySecurityCredentials` documentation with usage guidance
 - Clarified that `getUploadParameters` and `signPart` are optional when temp creds provided
 - Improved error messages for missing or invalid credentials
@@ -29,6 +32,7 @@
 ### Changed
 
 **Documentation Improvements**
+
 - Enhanced README.md with pub.dev and license badges
 - Added command-line installation instructions
 - Added comprehensive Examples and Documentation sections
@@ -38,12 +42,14 @@
 - Improved API documentation with better examples and links
 
 **Package Publishing**
+
 - Fixed dartdoc warnings for better API documentation quality
 - Created .pubignore to exclude internal documentation from published package
 - Updated repository URLs from placeholder to actual GitHub repository
 - Reduced published package size from ~350KB to 48KB
 
 ### Fixed
+
 - Removed unresolved dartdoc reference to `[retryConfig]` parameter
 - Fixed dartdoc syntax for list examples in S3UploaderOptions
 
@@ -54,6 +60,7 @@ First stable release of Fluppy, a modular file upload library for Dart inspired 
 ### Features
 
 **Core Upload System**
+
 - Event-driven architecture with type-safe sealed class events
 - Support for multiple concurrent uploads (configurable limit)
 - File queue management (add, remove, pause, resume, retry, cancel)
@@ -63,6 +70,7 @@ First stable release of Fluppy, a modular file upload library for Dart inspired 
 - Clean separation between core and uploader implementations
 
 **S3 Uploader**
+
 - Single-part uploads with presigned URLs
 - Multipart uploads for large files (>100 MiB default threshold)
 - Automatic chunking with configurable chunk size (5 MiB minimum)
@@ -74,6 +82,7 @@ First stable release of Fluppy, a modular file upload library for Dart inspired 
 - Automatic abort on cancellation with cleanup
 
 **Developer Experience**
+
 - Fully typed Dart API with null safety
 - Comprehensive dartdoc documentation
 - Headless design (bring your own UI)
