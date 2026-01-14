@@ -124,7 +124,7 @@ final fluppy = Fluppy(
       },
 
       // Optional: Custom object key generation
-      getObjectKey: (file) => 'uploads/${file.name}',
+      getObjectKey: (file) => 'uploads/${Date.now().millisecondsSinceEpoch}-${file.name}',
 
       // NOTE: getUploadParameters and signPart are NOT needed when temp creds provided!
     ),
