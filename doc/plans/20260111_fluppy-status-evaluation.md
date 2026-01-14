@@ -1,9 +1,9 @@
 # Fluppy Package Status Evaluation & Roadmap
 
-| Field | Value |
-|-------|-------|
-| **Created** | 2026-01-11 |
-| **Status** | Complete |
+| Field       | Value                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| **Created** | 2026-01-11                                                                               |
+| **Status**  | Complete                                                                                 |
 | **Purpose** | Comprehensive evaluation of Fluppy's current state, Uppy alignment, and future direction |
 
 ---
@@ -15,6 +15,7 @@
 Fluppy has established a **rock-solid foundation** that closely aligns with Uppy.js. The core architecture, S3 uploader, and event system are all **production-ready** and demonstrate strong Uppy alignment. The package is approximately **60-70% complete** for core Uppy features, with S3 being **fully implemented** and matching Uppy's functionality.
 
 **Key Findings:**
+
 - ✅ Core orchestrator perfectly matches Uppy's API
 - ✅ S3 uploader is comprehensive and Uppy-aligned
 - ✅ Event system using Dart idioms (sealed classes + streams)
@@ -32,36 +33,39 @@ Fluppy has established a **rock-solid foundation** that closely aligns with Uppy
 ### Overall Completeness: **65% Complete**
 
 #### ✅ Fully Implemented (40%)
-| Feature | Completeness | Uppy Alignment |
-|---------|--------------|----------------|
-| Core orchestrator | 100% | ✅ Excellent |
-| File management API | 100% | ✅ Perfect match |
-| Event system | 100% | ✅ Dart-idiomatic |
-| S3 single-part upload | 100% | ✅ Full parity |
-| S3 multipart upload | 100% | ✅ Full parity |
-| Pause/resume/cancel | 100% | ✅ Works perfectly |
-| Retry logic | 100% | ✅ Matches Uppy |
-| Progress tracking | 100% | ✅ Complete |
-| AWS Signature V4 | 100% | ✅ Production-ready |
+
+| Feature               | Completeness | Uppy Alignment      |
+| --------------------- | ------------ | ------------------- |
+| Core orchestrator     | 100%         | ✅ Excellent        |
+| File management API   | 100%         | ✅ Perfect match    |
+| Event system          | 100%         | ✅ Dart-idiomatic   |
+| S3 single-part upload | 100%         | ✅ Full parity      |
+| S3 multipart upload   | 100%         | ✅ Full parity      |
+| Pause/resume/cancel   | 100%         | ✅ Works perfectly  |
+| Retry logic           | 100%         | ✅ Matches Uppy     |
+| Progress tracking     | 100%         | ✅ Complete         |
+| AWS Signature V4      | 100%         | ✅ Production-ready |
 
 #### 🟡 Partially Implemented (25%)
-| Feature | Completeness | Status |
-|---------|--------------|--------|
-| Testing | 60% | Core tests exist, need S3 integration tests |
-| Documentation | 70% | Good dartdocs, examples exist |
-| Platform support | 50% | Works on Dart, needs Flutter-specific features |
+
+| Feature          | Completeness | Status                                         |
+| ---------------- | ------------ | ---------------------------------------------- |
+| Testing          | 60%          | Core tests exist, need S3 integration tests    |
+| Documentation    | 70%          | Good dartdocs, examples exist                  |
+| Platform support | 50%          | Works on Dart, needs Flutter-specific features |
 
 #### ❌ Not Implemented (35%)
-| Feature | Priority | Uppy Equivalent |
-|---------|----------|-----------------|
-| Preprocessing pipeline | HIGH | `addPreProcessor()` |
-| Postprocessing pipeline | HIGH | `addPostProcessor()` |
-| File restrictions | HIGH | `restrictions` option |
-| Tus uploader | HIGH | `@uppy/tus` |
-| HTTP/XHR uploader | MEDIUM | `@uppy/xhr-upload` |
-| Plugin system | MEDIUM | Multiple uploader support |
-| Remote sources | LOW | Google Drive, Dropbox, etc. |
-| State recovery | LOW | Golden Retriever plugin |
+
+| Feature                 | Priority | Uppy Equivalent             |
+| ----------------------- | -------- | --------------------------- |
+| Preprocessing pipeline  | HIGH     | `addPreProcessor()`         |
+| Postprocessing pipeline | HIGH     | `addPostProcessor()`        |
+| File restrictions       | HIGH     | `restrictions` option       |
+| Tus uploader            | HIGH     | `@uppy/tus`                 |
+| HTTP/XHR uploader       | MEDIUM   | `@uppy/xhr-upload`          |
+| Plugin system           | MEDIUM   | Multiple uploader support   |
+| Remote sources          | LOW      | Google Drive, Dropbox, etc. |
+| State recovery          | LOW      | Golden Retriever plugin     |
 
 ---
 
@@ -71,20 +75,21 @@ Fluppy has established a **rock-solid foundation** that closely aligns with Uppy
 
 #### Architecture Alignment
 
-| Aspect | Uppy Approach | Fluppy Implementation | Status |
-|--------|---------------|----------------------|--------|
-| **Single-part uploads** | Presigned URL + PUT | ✅ Identical approach | Perfect |
-| **Multipart uploads** | Create → Sign Parts → Complete | ✅ Identical flow | Perfect |
-| **Callback-based config** | Backend signs all requests | ✅ Same pattern | Perfect |
-| **Temporary credentials** | Optional STS mode | ✅ Implemented | Perfect |
-| **Pause/resume** | Via listParts() | ✅ Same mechanism | Perfect |
-| **Retry logic** | Configurable delays | ✅ Configurable delays | Perfect |
-| **Chunk size** | Configurable (5 MiB default) | ✅ Same default | Perfect |
-| **Concurrency** | Semaphore-based | ✅ Same pattern | Perfect |
+| Aspect                    | Uppy Approach                  | Fluppy Implementation  | Status  |
+| ------------------------- | ------------------------------ | ---------------------- | ------- |
+| **Single-part uploads**   | Presigned URL + PUT            | ✅ Identical approach  | Perfect |
+| **Multipart uploads**     | Create → Sign Parts → Complete | ✅ Identical flow      | Perfect |
+| **Callback-based config** | Backend signs all requests     | ✅ Same pattern        | Perfect |
+| **Temporary credentials** | Optional STS mode              | ✅ Implemented         | Perfect |
+| **Pause/resume**          | Via listParts()                | ✅ Same mechanism      | Perfect |
+| **Retry logic**           | Configurable delays            | ✅ Configurable delays | Perfect |
+| **Chunk size**            | Configurable (5 MiB default)   | ✅ Same default        | Perfect |
+| **Concurrency**           | Semaphore-based                | ✅ Same pattern        | Perfect |
 
 ### Key Strengths
 
 1. **API Matching**: The callback structure perfectly mirrors Uppy:
+
    ```javascript
    // Uppy
    uppy.use(AwsS3, {
@@ -104,6 +109,7 @@ Fluppy has established a **rock-solid foundation** that closely aligns with Uppy
    ```
 
 2. **Multipart Implementation**: Follows Uppy's exact flow:
+
    - Initialize multipart → get uploadId
    - Split into 5 MiB chunks
    - Sign each part
@@ -112,11 +118,13 @@ Fluppy has established a **rock-solid foundation** that closely aligns with Uppy
    - Complete or abort
 
 3. **Error Handling**: Comprehensive error types:
+
    - `S3UploadException` - General S3 errors
    - `S3ExpiredUrlException` - Detects expired presigned URLs (403 responses)
    - `PausedException` - Graceful pause handling
 
 4. **Progress Tracking**: Same granularity as Uppy:
+
    - Per-part progress in multipart mode
    - Aggregate progress across all parts
    - Events: `PartUploaded`, `UploadProgress`
@@ -149,12 +157,14 @@ The S3 uploader is not just aligned with Uppy—it's arguably **better designed*
 **Files in `/Users/neelanshsethi/StudioProjects/iv-pro-mobile/lib/libs/uploader/`:**
 
 1. **`fluppy_adapter.dart`** (310 lines)
+
    - Adapts Fluppy to your custom backend API
    - Maps your backend's multipart upload API to Fluppy's S3 callbacks
    - Includes retry logic with exponential backoff
    - Tracks `blobId` mapping for files
 
 2. **`parallel_multipart_uploader.dart`** (411 lines)
+
    - Your previous custom uploader implementation
    - Direct integration with UploaderClient
    - Custom retry and concurrency logic
@@ -183,6 +193,7 @@ The S3 uploader is not just aligned with Uppy—it's arguably **better designed*
 #### Comparison: Adapter vs ParallelMultipartUploader
 
 **Before (ParallelMultipartUploader):**
+
 - ❌ Custom implementation duplicates upload orchestration logic
 - ❌ No standardized event system
 - ❌ Harder to test (tightly coupled to backend)
@@ -190,6 +201,7 @@ The S3 uploader is not just aligned with Uppy—it's arguably **better designed*
 - ❌ Custom progress tracking implementation
 
 **Now (FluppyAdapter + Fluppy):**
+
 - ✅ Leverages Fluppy's battle-tested orchestration
 - ✅ Standard event system (sealed classes)
 - ✅ Easy to test (mock the backend)
@@ -203,6 +215,7 @@ The S3 uploader is not just aligned with Uppy—it's arguably **better designed*
 ### Minor Improvements for FluppyAdapter
 
 1. **Error Wrapping**: Consider wrapping backend errors in custom exception types:
+
    ```dart
    class BackendUploadException implements Exception {
      final String phase;
@@ -226,6 +239,7 @@ You're using Fluppy exactly as it was designed to be used. The adapter pattern i
 ### Architecture Assessment
 
 **Current Architecture:**
+
 ```
 ┌─────────────────────────────────────────┐
 │    User Code (Flutter/Dart App)         │
@@ -262,6 +276,7 @@ You're using Fluppy exactly as it was designed to be used. The adapter pattern i
 ### What Makes This the Right Direction
 
 1. **Uppy Alignment**: The core API matches Uppy almost 1:1, which means:
+
    - Developers familiar with Uppy can use Fluppy immediately
    - Documentation and patterns transfer directly
    - Future features can be ported from Uppy
@@ -269,6 +284,7 @@ You're using Fluppy exactly as it was designed to be used. The adapter pattern i
 2. **Dart-Idiomatic**: Using Dart's strengths (Streams, sealed classes, async/await) instead of forcing JavaScript patterns.
 
 3. **Backend-Agnostic**: The uploader abstraction allows any backend:
+
    - S3 (direct or via backend)
    - Tus servers
    - Custom APIs (via adapters)
@@ -286,18 +302,22 @@ You're using Fluppy exactly as it was designed to be used. The adapter pattern i
 **Keep these design decisions:**
 
 1. ✅ **Callback-based uploader options** (like S3UploaderOptions)
+
    - This is Uppy's pattern and it works beautifully
    - Gives users full control over backend integration
 
 2. ✅ **Sealed class events + Streams** (not EventEmitter)
+
    - Dart-idiomatic and type-safe
    - Better than mimicking JavaScript
 
 3. ✅ **Abstract Uploader base class**
+
    - Clean separation between orchestration and upload logic
    - Easy to add new uploaders
 
 4. ✅ **File state management** (uploadId, key, uploadedParts, etc.)
+
    - Enables pause/resume across all uploaders
    - Matches Uppy's approach
 
@@ -314,19 +334,21 @@ You're using Fluppy exactly as it was designed to be used. The adapter pattern i
 #### 1. Preprocessing/Postprocessing Pipeline
 
 **Uppy has**:
+
 ```javascript
 uppy.addPreProcessor((fileIDs) => {
   // Compress images, validate, etc.
-  return Promise.resolve()
-})
+  return Promise.resolve();
+});
 
 uppy.addPostProcessor((fileIDs) => {
   // Wait for CDN, create DB records, etc.
-  return Promise.resolve()
-})
+  return Promise.resolve();
+});
 ```
 
 **Fluppy needs**:
+
 ```dart
 class Fluppy {
   final List<PreProcessor> _preProcessors = [];
@@ -358,18 +380,20 @@ typedef PostProcessor = Future<void> Function(List<FluppyFile> files);
 #### 2. File Restrictions Validation
 
 **Uppy has**:
+
 ```javascript
 const uppy = new Uppy({
   restrictions: {
-    maxFileSize: 100 * 1024 * 1024,  // 100 MiB
-    allowedFileTypes: ['image/*', '.jpg'],
+    maxFileSize: 100 * 1024 * 1024, // 100 MiB
+    allowedFileTypes: ["image/*", ".jpg"],
     maxNumberOfFiles: 10,
-    requiredMetaFields: ['name']
-  }
-})
+    requiredMetaFields: ["name"],
+  },
+});
 ```
 
 **Fluppy needs**:
+
 ```dart
 class FluppyOptions {
   final FileRestrictions? restrictions;
@@ -399,6 +423,7 @@ class FileRestrictions {
 **Uppy has**: `@uppy/tus` - Universal resumable upload protocol
 
 **Fluppy needs**:
+
 ```dart
 class TusUploader extends Uploader {
   final TusOptions options;
@@ -464,6 +489,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 **Goal**: Achieve feature parity with Uppy Core
 
 1. **Week 1**:
+
    - Preprocessing/Postprocessing pipeline
    - File restrictions validation
    - Enhanced testing (S3 integration tests)
@@ -482,6 +508,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 **Goal**: Add Tus uploader and production-ready features
 
 1. **Week 3**:
+
    - Tus uploader implementation
    - Tus uploader tests
    - Example demonstrating Tus
@@ -500,6 +527,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 **Goal**: Flutter-specific features and production readiness
 
 1. **Week 5**:
+
    - Flutter file picker integration
    - Platform-specific optimizations
    - Flutter example app
@@ -518,6 +546,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 ### Current State: **Excellent** ✅
 
 **Positive indicators:**
+
 - Clean, well-documented code
 - Proper use of Dart features (sealed classes, extensions)
 - Good separation of concerns
@@ -526,6 +555,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 - No major code smells
 
 **Minor areas for improvement:**
+
 1. Add more integration tests for S3Uploader
 2. Add tests for AWS Signature V4
 3. Consider adding performance benchmarks
@@ -533,14 +563,14 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 
 ### Code Quality Metrics
 
-| Metric | Status | Notes |
-|--------|--------|-------|
-| Code structure | ✅ Excellent | Well-organized, clear separation |
-| Documentation | ✅ Good | Dartdocs present, examples work |
-| Testing | 🟡 Moderate | Core tests exist, need more coverage |
+| Metric         | Status       | Notes                                 |
+| -------------- | ------------ | ------------------------------------- |
+| Code structure | ✅ Excellent | Well-organized, clear separation      |
+| Documentation  | ✅ Good      | Dartdocs present, examples work       |
+| Testing        | 🟡 Moderate  | Core tests exist, need more coverage  |
 | Error handling | ✅ Excellent | Proper exception types, good messages |
-| Null safety | ✅ Complete | Properly enforced throughout |
-| Async handling | ✅ Excellent | Proper use of async/await, streams |
+| Null safety    | ✅ Complete  | Properly enforced throughout          |
+| Async handling | ✅ Excellent | Proper use of async/await, streams    |
 
 ---
 
@@ -549,6 +579,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 ### vs. Other Dart Upload Libraries
 
 **Fluppy's Advantages:**
+
 1. ✅ Uppy API alignment (familiar to millions of devs)
 2. ✅ Modular architecture (pluggable uploaders)
 3. ✅ Production-ready S3 support (single + multipart)
@@ -557,6 +588,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 6. ✅ Backend-agnostic design
 
 **Most Dart upload libraries lack:**
+
 - Standardized API (everyone rolls their own)
 - Multipart upload support
 - Pause/resume
@@ -573,6 +605,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 **None currently needed**. The current API is well-designed and stable.
 
 **Future considerations** (post-1.0.0):
+
 - If plugin system is refactored, ensure backwards compatibility
 - If adding new uploader options, use optional parameters
 - Version carefully according to semver
@@ -584,6 +617,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 ### Current Documentation: **Good**
 
 **What exists:**
+
 - ✅ Comprehensive README
 - ✅ API documentation (dartdocs)
 - ✅ Working example
@@ -591,6 +625,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 - ✅ Uppy study document (docs/uppy-study.md)
 
 **What's needed:**
+
 1. **Migration guide** from custom uploaders to Fluppy
 2. **Best practices guide** for production use
 3. **Adapter pattern guide** (using FluppyAdapter as example)
@@ -607,18 +642,21 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 **Recommended steps:**
 
 1. **Pub.dev Optimization**:
+
    - Ensure package description is clear and compelling
    - Add comprehensive tags (upload, s3, tus, multipart, uppy)
    - Include screenshots/diagrams in README
    - Link to live demo if possible
 
 2. **Marketing**:
+
    - Blog post: "Uppy comes to Flutter"
    - Show migration from custom uploaders to Fluppy
    - Highlight production usage (iv-pro-mobile)
    - Compare with other Dart upload solutions
 
 3. **Examples Repository**:
+
    - Flutter mobile app example
    - Flutter web app example
    - Pure Dart CLI example
@@ -637,6 +675,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 ### Overall Assessment: **EXCELLENT FOUNDATION** ✅
 
 **Current State:**
+
 - ✅ Architecture is sound and matches Uppy perfectly
 - ✅ S3 implementation is production-ready
 - ✅ Core orchestrator is feature-complete
@@ -644,11 +683,13 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 - ⚠️ Missing some high-priority Uppy features
 
 **Completeness:**
+
 - **Core features**: 90% complete
 - **S3 uploader**: 100% complete
 - **Overall Uppy parity**: 65% complete
 
 **Direction:**
+
 - ✅ **CORRECT**: Continue on current path
 - ✅ **MAINTAIN**: Current architecture and API
 - ✅ **ADD**: Preprocessing, restrictions, Tus
@@ -657,24 +698,16 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 ### Recommended Actions
 
 **Immediate (This Week):**
+
 1. ✅ Document current state (this file)
 2. Implement preprocessing/postprocessing pipeline
 3. Add file restrictions validation
 
-**Short-term (Next 2 Weeks):**
-4. Add HTTP/XHR uploader
-5. Enhance testing (S3 integration tests)
-6. Publish Fluppy 0.2.0
+**Short-term (Next 2 Weeks):** 4. Add HTTP/XHR uploader 5. Enhance testing (S3 integration tests) 6. Publish Fluppy 0.2.0
 
-**Medium-term (Next Month):**
-7. Implement Tus uploader
-8. Add state recovery
-9. Publish Fluppy 0.3.0
+**Medium-term (Next Month):** 7. Implement Tus uploader 8. Add state recovery 9. Publish Fluppy 0.3.0
 
-**Long-term (Next 2 Months):**
-10. Flutter-specific features
-11. Optional UI components
-12. Publish Fluppy 1.0.0
+**Long-term (Next 2 Months):** 10. Flutter-specific features 11. Optional UI components 12. Publish Fluppy 1.0.0
 
 ---
 
@@ -685,6 +718,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 **Answer: 65% complete overall, with S3 being 100% complete**
 
 **Breakdown:**
+
 - Core orchestrator: 90% (missing preprocessing/postprocessing)
 - S3 uploader: 100% (fully production-ready)
 - File restrictions: 0% (not implemented)
@@ -705,22 +739,22 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 
 **Detailed comparison:**
 
-| Feature | Uppy @uppy/aws-s3 | Fluppy S3Uploader | Match? |
-|---------|-------------------|-------------------|--------|
-| Single-part upload | ✅ | ✅ | Perfect |
-| Multipart upload | ✅ | ✅ | Perfect |
-| Presigned URLs | ✅ | ✅ | Perfect |
-| Temporary credentials | ✅ | ✅ | Perfect |
-| Pause/resume | ✅ | ✅ | Perfect |
-| List parts (resume) | ✅ | ✅ | Perfect |
-| Abort multipart | ✅ | ✅ | Perfect |
-| Retry logic | ✅ | ✅ | Perfect |
-| Chunk size config | ✅ | ✅ | Perfect |
-| Concurrency control | ✅ | ✅ | Perfect |
-| Progress tracking | ✅ | ✅ | Perfect |
-| Error handling | ✅ | ✅ | Perfect |
-| Expired URL detection | ❌ | ✅ | **Better!** |
-| Custom HTTP client | ❌ | ✅ | **Better!** |
+| Feature               | Uppy @uppy/aws-s3 | Fluppy S3Uploader | Match?      |
+| --------------------- | ----------------- | ----------------- | ----------- |
+| Single-part upload    | ✅                | ✅                | Perfect     |
+| Multipart upload      | ✅                | ✅                | Perfect     |
+| Presigned URLs        | ✅                | ✅                | Perfect     |
+| Temporary credentials | ✅                | ✅                | Perfect     |
+| Pause/resume          | ✅                | ✅                | Perfect     |
+| List parts (resume)   | ✅                | ✅                | Perfect     |
+| Abort multipart       | ✅                | ✅                | Perfect     |
+| Retry logic           | ✅                | ✅                | Perfect     |
+| Chunk size config     | ✅                | ✅                | Perfect     |
+| Concurrency control   | ✅                | ✅                | Perfect     |
+| Progress tracking     | ✅                | ✅                | Perfect     |
+| Error handling        | ✅                | ✅                | Perfect     |
+| Expired URL detection | ❌                | ✅                | **Better!** |
+| Custom HTTP client    | ❌                | ✅                | **Better!** |
 
 **Verdict**: Not only does it match Uppy, but in some ways (expired URL detection, custom HTTP client support), it's **more advanced** than Uppy's implementation.
 
@@ -737,11 +771,13 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 1. **FluppyAdapter Pattern**: Using an adapter to bridge Fluppy to your backend API is textbook software engineering. This is the **correct way** to integrate Fluppy with custom backends.
 
 2. **Separation of Concerns**:
+
    - Fluppy handles: orchestration, events, progress, pause/resume
    - Adapter handles: backend API mapping, backend-specific retry logic
    - **This is exactly how it should be**
 
 3. **Retry at Two Levels**:
+
    - Fluppy retries S3 upload requests (network layer)
    - Adapter retries backend API calls (application layer)
    - **This is the right architecture**
@@ -756,6 +792,7 @@ Allow multiple uploaders in one Fluppy instance, with per-file uploader selectio
 4. ✅ **Consider contributing FluppyAdapter as an example** - It's a great reference for custom backend integration
 
 **Minor improvements**:
+
 - Add custom exception types for backend errors
 - Clean up `_fileBlobIds` map in dispose()
 - Consider extracting retry logic to a mixin
@@ -798,9 +835,239 @@ Low Impact, High Effort:
 ```
 
 **Recommended order:**
+
 1. File restrictions (quick win)
 2. Preprocessing/Postprocessing (enables key use cases)
 3. HTTP uploader (broad compatibility)
 4. Tus uploader (standard resumable uploads)
 5. Everything else
 
+---
+
+## 14. Package Splitting Analysis: `fluppy_core` vs `fluppy_aws_s3`
+
+| Field        | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| **Created**  | 2026-01-13                                                   |
+| **Status**   | Research Complete - Decision Made                            |
+| **Decision** | Keep single package for now, revisit when 2+ uploaders exist |
+
+### Research Summary
+
+**Question**: Should Fluppy be split into `fluppy_core` and `fluppy_aws_s3` packages?
+
+**Answer**: **Not yet** - Current architecture is already well-separated. Revisit when Tus uploader is implemented.
+
+### Current Architecture Assessment ✅
+
+**Good News**: The codebase already has excellent separation:
+
+1. ✅ **Core is decoupled from S3**:
+
+   - Core doesn't import S3-specific types
+   - S3 state stored via `Expando` extension (not in `FluppyFile`)
+   - Core uses generic `Uploader` interface
+   - S3 uploader extends `Uploader` abstract class
+
+2. ✅ **Clean boundaries**:
+   - `lib/src/core/` - Generic upload orchestration
+   - `lib/src/s3/` - S3-specific implementation
+   - No circular dependencies
+
+### Arguments FOR Splitting
+
+#### 1. Alignment with Uppy.js ✅
+
+- Uppy uses separate packages: `@uppy/core`, `@uppy/aws-s3`, `@uppy/tus`
+- Splitting would align Fluppy with Uppy's proven structure
+
+#### 2. Dependency Management ✅
+
+- Users who don't need S3 avoid S3-related dependencies (`dio`, `crypto`)
+- Smaller bundle size for non-S3 users
+- Clearer dependency boundaries
+
+#### 3. Future Extensibility ✅
+
+- Easier to add: `fluppy_tus`, `fluppy_http`, `fluppy_gcs`, `fluppy_azure`
+- Each as separate, optional package
+
+#### 4. Independent Versioning ✅
+
+- Core can evolve independently
+- S3 uploader can release fixes without core changes
+
+### Arguments AGAINST Splitting (Current)
+
+#### 1. Current Architecture is Already Clean ✅
+
+- Core and S3 are well-separated
+- No tight coupling issues
+- Easy to maintain as-is
+
+#### 2. Package Management Overhead ⚠️
+
+- Two packages to publish/maintain
+- Version coordination between packages
+- More complex CI/CD
+- Documentation across packages
+
+#### 3. Dart/Flutter Ecosystem Patterns 📦
+
+- Many Dart packages keep related functionality together
+- Splitting is less common than in JavaScript ecosystem
+
+#### 4. Current User Experience 🎯
+
+Single package is simpler:
+
+```dart
+import 'package:fluppy/fluppy.dart';  // Simple!
+```
+
+vs.
+
+```dart
+import 'package:fluppy_core/fluppy_core.dart';
+import 'package:fluppy_aws_s3/fluppy_aws_s3.dart';  // More imports
+```
+
+#### 5. Early Stage Considerations 🚀
+
+- Package is at 0.2.0
+- S3 is the only uploader implemented
+- Premature optimization risk
+
+### User Experience If Split
+
+**Good News**: Users wouldn't need to add both packages manually!
+
+**Recommended Pattern** (if split):
+
+```yaml
+# pubspec.yaml - Only one package!
+dependencies:
+  fluppy_aws_s3: ^0.4.0 # fluppy_core comes automatically
+```
+
+```dart
+// Code - Only one import (if fluppy_aws_s3 re-exports core)!
+import 'package:fluppy_aws_s3/fluppy_aws_s3.dart';
+```
+
+**How it works**:
+
+- `fluppy_aws_s3` declares `fluppy_core` as dependency
+- Dart automatically fetches `fluppy_core` as transitive dependency
+- `fluppy_aws_s3` re-exports `fluppy_core` so users get everything from one import
+
+### Decision: Phased Approach
+
+#### Phase 1: Current State (0.2.0 - 0.3.0) ✅ **CURRENT**
+
+**Keep as single package**:
+
+- Focus on feature completion (preprocessing, restrictions, Tus)
+- Current architecture is sufficient
+- Avoid unnecessary churn
+
+#### Phase 2: Split When Adding Second Uploader (0.4.0+)
+
+**Split when**:
+
+- ✅ Tus uploader is implemented
+- ✅ You have 2+ uploaders
+- ✅ Benefits outweigh overhead
+
+**Structure**:
+
+```
+fluppy_core/
+  - Core orchestrator
+
+fluppy_aws_s3/
+  - S3 uploader implementation
+  - Depends on fluppy_core
+
+fluppy_tus/
+  - Tus uploader implementation
+  - Depends on fluppy_core
+```
+
+#### Phase 3: Monorepo Structure (Optional)
+
+Consider monorepo:
+
+```
+fluppy/
+  ├── packages/
+  │   ├── fluppy_core/
+  │   ├── fluppy_aws_s3/
+  │   └── fluppy_tus/
+  └── example/
+```
+
+### Implementation Considerations (If Split)
+
+**Package Structure**:
+
+```yaml
+# fluppy_core/pubspec.yaml
+name: fluppy_core
+version: 0.4.0
+
+# fluppy_aws_s3/pubspec.yaml
+name: fluppy_aws_s3
+version: 0.4.0
+dependencies:
+  fluppy_core: ^0.4.0
+  dio: ^5.4.0
+  crypto: ^3.0.3
+```
+
+**Export Strategy**:
+
+```dart
+// fluppy_aws_s3/lib/fluppy_aws_s3.dart
+// Re-export everything from core
+export 'package:fluppy_core/fluppy_core.dart';
+
+// Export S3-specific exports
+export 'src/s3/s3_uploader.dart';
+export 'src/s3/s3_options.dart';
+export 'src/s3/s3_types.dart';
+```
+
+### Final Recommendation ✅
+
+**Don't split yet**. Wait until:
+
+1. ✅ Tus uploader is implemented (2+ uploaders)
+2. ✅ Clear evidence of users wanting S3-only or core-only
+3. ✅ Ready to manage multiple packages
+
+**Current architecture is excellent**. Focus on:
+
+- Completing core features (preprocessing, restrictions)
+- Implementing Tus uploader
+- Getting to 1.0.0
+
+**Then reassess splitting** when you have:
+
+- Multiple uploaders
+- Clear user demand
+- More maintenance bandwidth
+
+### Alternative: Hybrid Approach
+
+Keep single package but improve organization:
+
+- Clear separation already exists ✅
+- Add documentation about modularity
+- Consider splitting only if you get 3+ uploaders
+
+This gives you flexibility without overhead of multiple packages.
+
+---
+
+**Bottom Line**: Your architecture is already well-separated. Splitting now would add overhead without clear benefits. Revisit when you have multiple uploaders and clearer user needs.
