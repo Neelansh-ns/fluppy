@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { STSClient, AssumeRoleCommand, GetSessionTokenCommand } = require('@aws-sdk/client-sts');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 require('dotenv').config();
 
@@ -10,6 +11,15 @@ app.use(express.json());
 
 // Initialize S3 client
 const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+// Initialize STS client for temporary credentials
+const stsClient = new STSClient({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -27,6 +37,37 @@ if (!BUCKET_NAME) {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', bucket: BUCKET_NAME });
+});
+
+// Get temporary credentials for client-side signing
+app.get('/sts-credentials', async (req, res) => {
+  try {
+    // Use GetSessionToken to get temporary credentials
+    // This is simpler than AssumeRole and works with the same credentials
+    const command = new GetSessionTokenCommand({
+      DurationSeconds: 3600, // 1 hour
+    });
+
+    const result = await stsClient.send(command);
+
+    if (!result.Credentials) {
+      throw new Error('No credentials returned from STS');
+    }
+
+    res.json({
+      credentials: {
+        AccessKeyId: result.Credentials.AccessKeyId,
+        SecretAccessKey: result.Credentials.SecretAccessKey,
+        SessionToken: result.Credentials.SessionToken,
+        Expiration: result.Credentials.Expiration?.toISOString(),
+      },
+      bucket: BUCKET_NAME,
+      region: process.env.AWS_REGION || 'us-east-1',
+    });
+  } catch (error) {
+    console.error('Error getting temporary credentials:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Single-part upload: Get presigned PUT URL

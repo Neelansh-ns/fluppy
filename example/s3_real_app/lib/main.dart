@@ -63,7 +63,26 @@ class _S3UploadPageState extends State<S3UploadPage> {
           // Chunk size for multipart uploads
           getChunkSize: (file) => _chunkSizeMB * 1024 * 1024,
 
-          // Single-part: Get presigned URL from backend
+          // Get temporary credentials for client-side signing
+          // When provided, getUploadParameters and signPart are NOT called
+          // getTemporarySecurityCredentials: (options) async {
+          //   final response = await http.get(
+          //     Uri.parse('$backendUrl/sts-credentials'),
+          //     headers: {'Content-Type': 'application/json'},
+          //   );
+          //
+          //   if (response.statusCode != 200) {
+          //     throw Exception('Failed to get temporary credentials: ${response.body}');
+          //   }
+          //
+          //   final data = jsonDecode(response.body) as Map<String, dynamic>;
+          //   return TemporaryCredentials.fromJson(data);
+          // },
+
+          // Optional: Custom object key generation
+          // getObjectKey: (file) => 'uploads/${DateTime.now().millisecondsSinceEpoch}-${file.name}',
+
+          // Single-part: Get presigned URL from backend (NOT called when temp creds provided)
           getUploadParameters: (file, options) async {
             final response = await http.post(
               Uri.parse('$backendUrl/presign-upload'),
