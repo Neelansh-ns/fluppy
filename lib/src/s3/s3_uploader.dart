@@ -5,6 +5,7 @@ import 'package:dio/dio.dart' hide ProgressCallback;
 import '../core/fluppy.dart' show FluppyFile, FileStatus;
 import '../core/types.dart';
 import '../core/uploader.dart';
+import 'aws_signature_v4.dart';
 import 'fluppy_file_extension.dart';
 import 'multipart_upload_controller.dart';
 import 's3_options.dart';
@@ -240,11 +241,37 @@ class S3Uploader extends Uploader with RetryMixin {
   }) async {
     cancellationToken?.throwIfCancelled();
 
-    // Get upload parameters
-    final params = await options.getUploadParameters(
-      file,
-      UploadOptions(signal: cancellationToken),
-    );
+    // Check if we should use temporary credentials for client-side signing
+    UploadParameters params;
+    TemporaryCredentials? tempCredentials;
+    String? objectKey;
+
+    if (hasTemporaryCredentials) {
+      // Get temporary credentials (cached if valid)
+      tempCredentials = await getTemporaryCredentials(cancellationToken: cancellationToken);
+      if (tempCredentials == null) {
+        throw S3UploadException(
+          'Temporary credentials not available. Ensure getTemporarySecurityCredentials is properly configured.',
+        );
+      }
+
+      // Determine object key
+      objectKey = options.objectKey(file);
+
+      // Sign URL client-side using temporary credentials
+      final signer = AwsSignatureV4.fromCredentials(tempCredentials);
+      params = signer.createPresignedUrl(
+        key: objectKey,
+        contentType: file.type,
+        expires: 3600, // 1 hour default expiration
+      );
+    } else {
+      // Fall back to backend signing
+      params = await options.getUploadParameters(
+        file,
+        UploadOptions(signal: cancellationToken),
+      );
+    }
     cancellationToken?.throwIfCancelled();
 
     // Get file data
@@ -337,7 +364,13 @@ class S3Uploader extends Uploader with RetryMixin {
 
     // Extract ETag and location
     final eTag = response.headers['etag'];
-    final location = response.headers['location'] ?? params.url.split('?').first;
+    // For temp creds, construct location from bucket/region/key
+    String location;
+    if (tempCredentials != null && objectKey != null) {
+      location = 'https://${tempCredentials.bucket}.s3.${tempCredentials.region}.amazonaws.com/$objectKey';
+    } else {
+      location = response.headers['location'] ?? params.url.split('?').first;
+    }
 
     return UploadResponse(
       location: location,

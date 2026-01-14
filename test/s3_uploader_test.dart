@@ -1733,6 +1733,138 @@ void main() {
         expect(uploaderWith.hasTemporaryCredentials, isTrue);
         expect(uploaderWithout.hasTemporaryCredentials, isFalse);
       });
+
+      test('single-part upload uses temp credentials to sign URL client-side', () async {
+        var getParamsCalled = false;
+        var credentialsCallCount = 0;
+
+        final uploader = S3Uploader(
+          dio: createMockDio(),
+          options: S3UploaderOptions(
+            shouldUseMultipart: (file) => false,
+            getTemporarySecurityCredentials: (opts) async {
+              credentialsCallCount++;
+              return TemporaryCredentials(
+                accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+                secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                sessionToken: 'token',
+                expiration: DateTime.now().add(const Duration(hours: 1)),
+                bucket: 'test-bucket',
+                region: 'us-east-1',
+              );
+            },
+            getUploadParameters: (file, opts) async {
+              getParamsCalled = true; // Should NOT be called when temp creds available
+              return const UploadParameters(method: 'PUT', url: 'test');
+            },
+            createMultipartUpload: (file) => throw UnimplementedError(),
+            signPart: (file, opts) => throw UnimplementedError(),
+            completeMultipartUpload: (file, opts) => throw UnimplementedError(),
+            listParts: (file, opts) => throw UnimplementedError(),
+            abortMultipartUpload: (file, opts) async {},
+          ),
+        );
+
+        final file = FluppyFile.fromBytes(
+          Uint8List(1024),
+          name: 'test-file.txt',
+          type: 'text/plain',
+        );
+
+        final response = await uploader.upload(
+          file,
+          onProgress: (_) {},
+          emitEvent: (_) {},
+        );
+
+        // Verify getUploadParameters was NOT called (temp creds used instead)
+        expect(getParamsCalled, isFalse);
+        // Verify credentials were fetched
+        expect(credentialsCallCount, greaterThan(0));
+        // Verify upload succeeded
+        expect(response.location, isNotNull);
+        // Verify location is constructed from bucket/region/key
+        expect(response.location, contains('test-bucket'));
+        expect(response.location, contains('us-east-1'));
+        expect(response.location, contains('test-file.txt'));
+      });
+
+      test('single-part upload falls back to backend when temp creds not provided', () async {
+        var getParamsCalled = false;
+
+        final uploader = S3Uploader(
+          dio: createMockDio(),
+          options: S3UploaderOptions(
+            shouldUseMultipart: (file) => false,
+            getUploadParameters: (file, opts) async {
+              getParamsCalled = true;
+              return const UploadParameters(
+                method: 'PUT',
+                url: 'https://mock.s3.com/test-file.txt',
+              );
+            },
+            createMultipartUpload: (file) => throw UnimplementedError(),
+            signPart: (file, opts) => throw UnimplementedError(),
+            completeMultipartUpload: (file, opts) => throw UnimplementedError(),
+            listParts: (file, opts) => throw UnimplementedError(),
+            abortMultipartUpload: (file, opts) async {},
+          ),
+        );
+
+        final file = FluppyFile.fromBytes(
+          Uint8List(1024),
+          name: 'test-file.txt',
+        );
+
+        await uploader.upload(
+          file,
+          onProgress: (_) {},
+          emitEvent: (_) {},
+        );
+
+        // Verify getUploadParameters WAS called (fallback to backend)
+        expect(getParamsCalled, isTrue);
+      });
+
+      test('single-part upload uses custom object key callback when provided', () async {
+        final uploader = S3Uploader(
+          dio: createMockDio(),
+          options: S3UploaderOptions(
+            shouldUseMultipart: (file) => false,
+            getObjectKey: (file) => 'custom-prefix/${file.name}',
+            getTemporarySecurityCredentials: (opts) async {
+              return TemporaryCredentials(
+                accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+                secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                sessionToken: 'token',
+                expiration: DateTime.now().add(const Duration(hours: 1)),
+                bucket: 'test-bucket',
+                region: 'us-east-1',
+              );
+            },
+            getUploadParameters: (file, opts) => throw UnimplementedError(),
+            createMultipartUpload: (file) => throw UnimplementedError(),
+            signPart: (file, opts) => throw UnimplementedError(),
+            completeMultipartUpload: (file, opts) => throw UnimplementedError(),
+            listParts: (file, opts) => throw UnimplementedError(),
+            abortMultipartUpload: (file, opts) async {},
+          ),
+        );
+
+        final file = FluppyFile.fromBytes(
+          Uint8List(1024),
+          name: 'test-file.txt',
+        );
+
+        final response = await uploader.upload(
+          file,
+          onProgress: (_) {},
+          emitEvent: (_) {},
+        );
+
+        // Verify location uses custom key
+        expect(response.location, contains('custom-prefix/test-file.txt'));
+      });
     });
 
     group('Configuration', () {

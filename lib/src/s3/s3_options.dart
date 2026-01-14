@@ -43,6 +43,12 @@ typedef CompleteMultipartUploadCallback = Future<CompleteMultipartResult> Functi
 /// Signature for the getTemporarySecurityCredentials callback.
 typedef GetTemporarySecurityCredentialsCallback = Future<TemporaryCredentials> Function(CredentialsOptions options);
 
+/// Signature for the getObjectKey callback.
+///
+/// Used to determine the S3 object key when using temporary credentials.
+/// If not provided, defaults to [FluppyFile.name].
+typedef GetObjectKeyCallback = String Function(FluppyFile file);
+
 /// Signature for the uploadPartBytes callback.
 ///
 /// Allows customizing how part bytes are uploaded to S3.
@@ -156,6 +162,14 @@ class S3UploaderOptions {
   /// This is a security tradeoff - see AWS documentation.
   final GetTemporarySecurityCredentialsCallback? getTemporarySecurityCredentials;
 
+  /// Get the S3 object key for a file.
+  ///
+  /// Optional. When using temporary credentials, this determines the object key
+  /// for single-part uploads. If not provided, defaults to [FluppyFile.name].
+  ///
+  /// For multipart uploads, the key is determined by [createMultipartUpload].
+  final GetObjectKeyCallback? getObjectKey;
+
   /// Metadata fields to include in upload.
   ///
   /// - `null`: Include all metadata
@@ -203,6 +217,7 @@ class S3UploaderOptions {
     this.shouldUseMultipart,
     this.getChunkSize,
     this.getTemporarySecurityCredentials,
+    this.getObjectKey,
     this.allowedMetaFields,
     this.maxConcurrentParts = 3,
     this.retryConfig = RetryConfig.defaultConfig,
@@ -236,6 +251,13 @@ class S3UploaderOptions {
     }
 
     return size;
+  }
+
+  /// Gets the object key for the given file.
+  ///
+  /// Uses [getObjectKey] callback if provided, otherwise defaults to [FluppyFile.name].
+  String objectKey(FluppyFile file) {
+    return getObjectKey?.call(file) ?? file.name;
   }
 }
 
