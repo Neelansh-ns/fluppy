@@ -265,8 +265,8 @@ class S3Uploader extends Uploader with RetryMixin {
       // Sign URL client-side using temporary credentials
       params = tempCredentials.createPresignedUrl(
         key: objectKey,
-        contentType: file.type,
-        expires: 3600, // 1 hour default expiration
+        contentType: file.type ?? 'application/octet-stream',
+        expires: 3600,
       );
     } else {
       // Fall back to backend signing
@@ -296,17 +296,14 @@ class S3Uploader extends Uploader with RetryMixin {
         }
 
         try {
-          // Ensure content-type is set for binary data (Dio requirement)
+          // Use only the headers that were signed
           final uploadHeaders = Map<String, String>.from(params.headers ?? {});
-          if (!uploadHeaders.containsKey('content-type') && !uploadHeaders.containsKey('Content-Type')) {
-            uploadHeaders['Content-Type'] = file.type ?? 'application/octet-stream';
-          }
 
           final dioResponse = await _dio.put(
             params.url,
             data: bytes,
             options: Options(
-              headers: uploadHeaders,
+              headers: uploadHeaders.isEmpty ? null : uploadHeaders,
               receiveTimeout: params.expires != null && params.expires! > 0 ? Duration(seconds: params.expires!) : null,
             ),
             cancelToken: cancelToken,
@@ -370,9 +367,34 @@ class S3Uploader extends Uploader with RetryMixin {
     // For temp creds, construct location from bucket/region/key
     String location;
     if (tempCredentials != null && objectKey != null) {
-      location = 'https://${tempCredentials.bucket}.s3.${tempCredentials.region}.amazonaws.com/$objectKey';
+      // Construct URL with proper path encoding (match signature encoding), then decode for cleaner display
+      final pathSegments = objectKey.split('/').map((s) {
+        var encoded = Uri.encodeComponent(s);
+        // Encode parentheses to match signature encoding (for consistency)
+        encoded = encoded.replaceAll('(', '%28').replaceAll(')', '%29');
+        return encoded;
+      }).join('/');
+      final encodedUrl = 'https://${tempCredentials.bucket}.s3.${tempCredentials.region}.amazonaws.com/$pathSegments';
+      // Decode the path for cleaner display (same as non-temp creds)
+      try {
+        final uri = Uri.parse(encodedUrl);
+        final decodedPath = Uri.decodeComponent(uri.path);
+        location = '${uri.scheme}://${uri.host}$decodedPath';
+      } catch (_) {
+        location = encodedUrl;
+      }
     } else {
-      location = response.headers['location'] ?? params.url.split('?').first;
+      // Decode URL path for cleaner display (presigned URLs may have encoded paths)
+      final rawLocation = response.headers['location'] ?? params.url.split('?').first;
+      try {
+        final uri = Uri.parse(rawLocation);
+        // Decode the path component to remove %2F encoding
+        final decodedPath = Uri.decodeComponent(uri.path);
+        // Reconstruct with decoded path for cleaner display
+        location = '${uri.scheme}://${uri.host}$decodedPath';
+      } catch (_) {
+        location = rawLocation;
+      }
     }
 
     return UploadResponse(
