@@ -21,7 +21,7 @@ Add Fluppy to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  fluppy: ^0.2.1
+  fluppy: ^0.2.2
 ```
 
 Or install via command line:
@@ -144,29 +144,31 @@ final fluppy = Fluppy(
 - Use AWS STS to generate short-lived credentials
 - Scope IAM permissions to specific bucket/operations
 
+### Usage Example
+
+```dart
 // Add a file
 final file = fluppy.addFile(FluppyFile.fromPath('/path/to/video.mp4'));
 
 // Listen to events
 fluppy.events.listen((event) {
-switch (event) {
-case FileAdded(:final file):
-print('Added: ${file.name}');
+  switch (event) {
+    case FileAdded(:final file):
+      print('Added: ${file.name}');
     case UploadProgress(:final file, :final progress):
       print('${file.name}: ${progress.percent.toStringAsFixed(1)}%');
-case UploadComplete(:final file, :final response):
-print('Complete: ${response?.location}');
-case UploadError(:final file, :final error):
-print('Error: $error');
-default:
-break;
-}
+    case UploadComplete(:final file, :final response):
+      print('Complete: ${response?.location}');
+    case UploadError(:final file, :final error):
+      print('Error: $error');
+    default:
+      break;
+  }
 });
 
 // Start upload
 await fluppy.upload();
-
-````
+```
 
 ## API Reference
 
@@ -195,7 +197,7 @@ await fluppy.resume(fileId);     // Resume upload
 await fluppy.retry(fileId);      // Retry failed upload
 await fluppy.cancel(fileId);     // Cancel upload
 fluppy.removeFile(fileId);       // Remove file from queue
-````
+```
 
 ## Examples
 
@@ -212,18 +214,18 @@ fluppy.removeFile(fileId);       // Remove file from queue
 
 Fluppy aims for 1:1 feature parity with [Uppy.js](https://uppy.io/). Currently implemented:
 
-✅ Core orchestrator with event system
-✅ S3 uploader (single-part and multipart)
-✅ Pause/Resume/Retry functionality
-✅ Progress tracking
-✅ AWS Signature V4 support
+- ✅ Core orchestrator with event system
+- ✅ S3 uploader (single-part and multipart)
+- ✅ Pause/Resume/Retry functionality
+- ✅ Progress tracking
+- ✅ AWS Signature V4 support
 
 Coming soon:
 
-🔲 Tus resumable upload protocol
-🔲 HTTP/XHR uploader
-🔲 Preprocessing/Postprocessing pipeline
-🔲 File restrictions (size, type, count)
+- 🔲 Tus resumable upload protocol
+- 🔲 HTTP/XHR uploader
+- 🔲 Preprocessing/Postprocessing pipeline
+- 🔲 File restrictions (size, type, count)
 
 ## License
 
