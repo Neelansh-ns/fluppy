@@ -1,3 +1,30 @@
+## 0.3.0 - 2026-01-20
+
+### Added
+
+**S3Utils Helper Class**
+
+- `S3Utils.constructUrl()` - Build S3 URLs from bucket, region, and key
+- `S3Utils.constructUrlFromCredentials()` - Build URLs using TemporaryCredentials
+- `S3Utils.decodeUrlPath()` - Decode URL-encoded path segments for display
+- `S3Utils.normalizeETag()` / `S3Utils.stripETagQuotes()` - ETag handling helpers
+
+**Flexible Upload Response**
+
+- `UploadResponse.body` field for passing custom data from upload callbacks
+- `CompleteMultipartResult.body` flows through to `UploadResponse.body`
+- Backends can now pass media IDs, blob references, and custom metadata through uploads
+
+### Changed
+
+- S3 upload responses return raw location URLs without automatic construction or decoding
+- Users can use `S3Utils` helpers if URL manipulation is needed
+
+### Breaking
+
+- Removed `UploadResponse.key` field - use `response.body?['key']` instead
+- Standard S3 fields (`eTag`, `key`) are now in `response.body` map
+
 ## 0.2.2 - 2026-01-15
 
 ### Fixed
