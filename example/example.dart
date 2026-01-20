@@ -86,9 +86,34 @@ void main() async {
         completeMultipartUpload: (file, options) async {
           // Call your backend to complete the upload
           // This combines all parts into the final object
+          //
+          // Note: Fluppy returns raw location URLs (matching Uppy.js behavior).
+          // If your backend doesn't return a location, or you need a decoded URL,
+          // you can use S3Utils helpers:
+          //
+          // Option 1: Backend returns location (recommended)
+          //   return CompleteMultipartResult(location: response.url, body: {...});
+          //
+          // Option 2: Construct URL using S3Utils if backend doesn't return one
+          //   final location = S3Utils.constructUrl(
+          //     bucket: 'your-bucket',
+          //     region: 'us-east-1',
+          //     key: options.key,
+          //   );
+          //
+          // Option 3: Decode URL for cleaner display (optional)
+          //   final displayUrl = S3Utils.decodeUrlPath(response.url);
 
+          // You can pass custom data through the body field
+          // This data will be available in the UploadComplete event
           return CompleteMultipartResult(
             location: 'https://your-bucket.s3.amazonaws.com/uploads/${file.name}',
+            body: {
+              // Pass any custom data from your backend response
+              'mediaId': 'generated-media-id-12345',
+              'blobId': 'blob-reference-abc',
+              // You can include any application-specific data here
+            },
           );
         },
 
@@ -138,7 +163,19 @@ void main() async {
 
       case UploadComplete(:final file, :final response):
         print('✅ Complete: ${file.name}');
-        print('   Location: ${response?.location}');
+        // Note: location is returned raw (may be URL-encoded) like Uppy.js
+        // Use S3Utils.decodeUrlPath() if you want a decoded URL for display
+        final location = response?.location;
+        if (location != null) {
+          print('   Location: $location');
+          // Optional: decode for cleaner display
+          // print('   Display URL: ${S3Utils.decodeUrlPath(location)}');
+        }
+        // Access custom data from response body
+        final mediaId = response?.body?['mediaId'];
+        final eTag = response?.body?['eTag'];
+        if (mediaId != null) print('   Media ID: $mediaId');
+        if (eTag != null) print('   ETag: $eTag');
 
       case UploadError(:final file, :final message):
         print('❌ Error: ${file.name} - $message');
