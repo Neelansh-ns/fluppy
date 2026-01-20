@@ -87,21 +87,48 @@ class UploadProgressInfo {
 }
 
 /// Response from a completed upload.
+///
+/// The [body] field contains the complete response from the upload backend,
+/// allowing custom data to flow through from upload callbacks.
+///
+/// Example:
+/// ```dart
+/// fluppy.events.listen((event) {
+///   if (event is UploadComplete) {
+///     final mediaId = event.response.body?['mediaId'];
+///     final customData = event.response.body?['myCustomField'];
+///   }
+/// });
+/// ```
 class UploadResponse {
   /// The URL to the uploaded file (if available).
   final String? location;
 
-  /// The ETag of the uploaded file.
-  final String? eTag;
+  /// The complete response body from the upload backend.
+  ///
+  /// This field contains any custom data returned by your upload callbacks
+  /// (e.g., `completeMultipartUpload`). Use this to access backend-specific
+  /// response data like media IDs, blob references, or custom metadata.
+  ///
+  /// Example:
+  /// ```dart
+  /// final response = UploadResponse(
+  ///   location: 'https://example.com/file.jpg',
+  ///   body: {
+  ///     'mediaId': '12345',
+  ///     'eTag': '"abc123"',
+  ///     'key': 'uploads/file.jpg',
+  ///     'customField': 'value',
+  ///   },
+  /// );
+  /// ```
+  final Map<String, dynamic>? body;
 
-  /// The object key in the bucket.
-  final String? key;
-
-  /// Additional response data.
-  final Map<String, dynamic>? metadata;
-
-  const UploadResponse({this.location, this.eTag, this.key, this.metadata});
+  const UploadResponse({
+    this.location,
+    this.body,
+  });
 
   @override
-  String toString() => 'UploadResponse(location: $location, key: $key)';
+  String toString() => 'UploadResponse(location: $location, body: $body)';
 }
