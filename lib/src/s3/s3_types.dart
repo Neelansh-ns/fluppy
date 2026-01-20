@@ -212,17 +212,54 @@ class CompleteMultipartOptions {
 }
 
 /// Result from completing a multipart upload.
+///
+/// The [body] field allows passing custom data from your backend response
+/// through to the final [UploadResponse].
+///
+/// Example:
+/// ```dart
+/// completeMultipartUpload: (file, options) async {
+///   final response = await myBackend.completeUpload(...);
+///   return CompleteMultipartResult(
+///     location: response.url,
+///     body: {
+///       'mediaId': response.mediaId,
+///       'blobId': response.blobId,
+///       'thumbnailUrl': response.thumbnailUrl,
+///     },
+///   );
+/// },
+/// ```
 class CompleteMultipartResult {
   /// The public URL to the uploaded file (if available).
   final String? location;
 
   /// The ETag of the completed object.
+  ///
+  /// Note: This is also included in [body] when provided, for convenience.
   final String? eTag;
 
-  const CompleteMultipartResult({this.location, this.eTag});
+  /// Custom response data from the upload backend.
+  ///
+  /// This data flows through to [UploadResponse.body], allowing you to
+  /// pass any custom fields from your `completeMultipartUpload` callback
+  /// to the upload completion event.
+  ///
+  /// Common use cases:
+  /// - Backend-generated IDs (mediaId, blobId, etc.)
+  /// - Processing status or metadata
+  /// - Thumbnail URLs or derived assets
+  /// - Any application-specific data
+  final Map<String, dynamic>? body;
+
+  const CompleteMultipartResult({
+    this.location,
+    this.eTag,
+    this.body,
+  });
 
   @override
-  String toString() => 'CompleteMultipartResult(location: $location)';
+  String toString() => 'CompleteMultipartResult(location: $location, body: $body)';
 }
 
 /// Options for getting temporary security credentials.

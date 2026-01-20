@@ -362,45 +362,18 @@ class S3Uploader extends Uploader with RetryMixin {
       shouldRetry: _shouldRetryError,
     );
 
-    // Extract ETag and location
     final eTag = response.headers['etag'];
-    // For temp creds, construct location from bucket/region/key
-    String location;
-    if (tempCredentials != null && objectKey != null) {
-      // Construct URL with proper path encoding (match signature encoding), then decode for cleaner display
-      final pathSegments = objectKey.split('/').map((s) {
-        var encoded = Uri.encodeComponent(s);
-        // Encode parentheses to match signature encoding (for consistency)
-        encoded = encoded.replaceAll('(', '%28').replaceAll(')', '%29');
-        return encoded;
-      }).join('/');
-      final encodedUrl = 'https://${tempCredentials.bucket}.s3.${tempCredentials.region}.amazonaws.com/$pathSegments';
-      // Decode the path for cleaner display (same as non-temp creds)
-      try {
-        final uri = Uri.parse(encodedUrl);
-        final decodedPath = Uri.decodeComponent(uri.path);
-        // Preserve port if present
-        location = '${uri.scheme}://${uri.authority}$decodedPath';
-      } catch (_) {
-        location = encodedUrl;
-      }
-    } else {
-      // Decode URL path for cleaner display (presigned URLs may have encoded paths)
-      final rawLocation = response.headers['location'] ?? params.url.split('?').first;
-      try {
-        final uri = Uri.parse(rawLocation);
-        // Decode the path component to remove %2F encoding
-        final decodedPath = Uri.decodeComponent(uri.path);
-        // Reconstruct with decoded path for cleaner display (preserve port if present)
-        location = '${uri.scheme}://${uri.authority}$decodedPath';
-      } catch (_) {
-        location = rawLocation;
-      }
-    }
+    final location = response.headers['location'] ?? params.url.split('?').first;
+
+    // Build response body with S3 fields
+    final Map<String, dynamic> responseBody = {
+      if (eTag != null) 'eTag': eTag,
+      if (objectKey != null) 'key': objectKey,
+    };
 
     return UploadResponse(
       location: location,
-      eTag: eTag,
+      body: responseBody.isNotEmpty ? responseBody : null,
     );
   }
 

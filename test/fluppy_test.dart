@@ -54,7 +54,7 @@ class MockUploader extends Uploader {
     uploadedFiles.add(file.id);
     return UploadResponse(
       location: 'https://example.com/${file.name}',
-      key: file.name,
+      body: {'key': file.name},
     );
   }
 

@@ -565,50 +565,20 @@ class MultipartUploadController {
     // Emit final progress update (100%) before completing
     _emitAggregatedProgress();
 
-    // Decode location URL for cleaner display (backend may return encoded paths)
-    String? location = result.location;
-    if (location != null) {
-      try {
-        final uri = Uri.parse(location);
-        // Decode the path component to remove %2F encoding
-        final decodedPath = Uri.decodeComponent(uri.path);
-        // Reconstruct with decoded path for cleaner display (preserve port if present)
-        location = '${uri.scheme}://${uri.authority}$decodedPath';
-      } catch (_) {
-        // If parsing fails, use original location
-      }
-    } else if (getTemporaryCredentials != null && file.s3Multipart.key != null) {
-      // Construct location from temp credentials if not provided by backend
-      try {
-        final credentials = await getTemporaryCredentials!();
-        if (credentials != null) {
-          final key = file.s3Multipart.key!;
-          final pathSegments = key.split('/').map((s) {
-            var encoded = Uri.encodeComponent(s);
-            // Encode parentheses to match signature encoding (for consistency)
-            encoded = encoded.replaceAll('(', '%28').replaceAll(')', '%29');
-            return encoded;
-          }).join('/');
-          final encodedUrl = 'https://${credentials.bucket}.s3.${credentials.region}.amazonaws.com/$pathSegments';
-          // Decode the path for cleaner display (same as backend-provided URLs)
-          try {
-            final uri = Uri.parse(encodedUrl);
-            final decodedPath = Uri.decodeComponent(uri.path);
-            // Preserve port if present
-            location = '${uri.scheme}://${uri.authority}$decodedPath';
-          } catch (_) {
-            location = encodedUrl;
-          }
-        }
-      } catch (_) {
-        // If getting credentials fails, location remains null
-      }
-    }
+    final location = result.location;
+
+    // Build the response body, merging any custom data with standard fields
+    final Map<String, dynamic> responseBody = {
+      // Include standard S3 fields in body
+      if (result.eTag != null) 'eTag': result.eTag,
+      if (file.s3Multipart.key != null) 'key': file.s3Multipart.key,
+      // Merge any custom data from the callback (takes precedence)
+      if (result.body != null) ...result.body!,
+    };
 
     return UploadResponse(
       location: location,
-      eTag: result.eTag,
-      key: file.s3Multipart.key,
+      body: responseBody.isNotEmpty ? responseBody : null,
     );
   }
 

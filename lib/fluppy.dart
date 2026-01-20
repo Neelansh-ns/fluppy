@@ -69,5 +69,6 @@ export 'src/s3/s3_uploader.dart';
 export 'src/s3/s3_options.dart';
 export 'src/s3/s3_types.dart';
 export 'src/s3/s3_events.dart';
+export 'src/s3/s3_utils.dart';
 export 'src/s3/aws_signature_v4.dart';
 export 'src/s3/fluppy_file_extension.dart' show S3FilePublic;
